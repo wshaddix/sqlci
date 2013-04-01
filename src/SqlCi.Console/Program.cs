@@ -1,7 +1,7 @@
-﻿using System;
+﻿using Mono.Options;
 using SqlCi.ScriptRunner;
+using System;
 using System.Configuration;
-using SqlCi.ScriptRunner.Events;
 
 namespace SqlCi.Console
 {
@@ -9,10 +9,27 @@ namespace SqlCi.Console
     {
         static int Main(string[] args)
         {
+            ConfigurationValues config;
+            var optionSet = DefineOptionSet(args, out config);
+
+            if (null == optionSet)
+            {
+                return -1;
+            }
+
+            if (config.ShowHelp)
+            {
+                ShowHelp(optionSet);
+                return 0;
+            }
+
             try
             {
-                // grab the configuration values
-                var config = GetConfigurationValues();
+                // grab the configuration values from the .config file if the user specified to
+                if (config.UseConfigFile)
+                {
+                    GetConfigurationValues(config);
+                }
 
                 // create a script configuration
                 var scriptConfiguration = new ScriptConfiguration()
@@ -47,9 +64,50 @@ namespace SqlCi.Console
             }
         }
 
-        private static ConfigurationValues GetConfigurationValues()
+        private static OptionSet DefineOptionSet(string[] args, out ConfigurationValues configuration)
         {
             var config = new ConfigurationValues();
+
+            var optionSet = new OptionSet()
+                {
+                    {"uc|useConfig", "Determines whether to get config values from the SqlCi.Console.exe.config file or the command line arguments", p => config.UseConfigFile = p != null},
+                    {"cs|connectionString=", "The connection string to use to access the database to run the scripts in", p => config.ConnectionString = p },
+                    {"st|scriptTable=", "The name of the script table", p => config.ScriptTable = p },
+                    {"rv|releaseVersion=", "The version of this release",  p => config.ReleaseNumber = p},
+                    {"sf|scriptsFolder=", "The folder that holds the sql scripts to be ran",  p => config.ScriptsFolder = p},
+                    {"rd|resetDatabase", "Determines if the database should be reset", p => config.ResetDatabase = p != null},
+                    {"rf|resetFolder=", "The folder that holds the database reset scripts to be ran if resetDatabase is specified", p => config.ResetFolder = p},
+                    {"h|help", "show this message and exit", p => config.ShowHelp = p != null}
+                };
+
+            try
+            {
+                optionSet.Parse(args);
+            }
+            catch (OptionException e)
+            {
+                System.Console.Write("SqlCi.Console: ");
+                System.Console.WriteLine(e.Message);
+                System.Console.WriteLine("Try 'SqlCi.Console --help' for more information.");
+                configuration = null;
+                return null;
+            }
+
+            configuration = config;
+            return optionSet;
+        }
+
+        private static void ShowHelp(OptionSet optionSet)
+        {
+            System.Console.WriteLine("Usage: SqlCi.Console [OPTIONS]");
+            System.Console.WriteLine("Runs a set of sql scripts against the specified database.");
+            System.Console.WriteLine();
+            System.Console.WriteLine("Options:");
+            optionSet.WriteOptionDescriptions(System.Console.Out);
+        }
+
+        private static ConfigurationValues GetConfigurationValues(ConfigurationValues config)
+        {
             config.ConnectionString = GetConnectionString();
             config.ScriptsFolder = GetScriptsFolder();
             config.ResetDatabase = GetResetDatabase();
