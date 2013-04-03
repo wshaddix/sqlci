@@ -25,10 +25,15 @@ The connection string should be specified under the connectionStrings element an
 ```
 
 ## App Settings
+
 **ScriptTable** - The name of the table that should be used to store the scripts that have been ran. Defaults to "ScriptTable"
+
 **ReleaseVersion** - The version of the release to associate with the current script deployment. Defaults to "1.0.0"
+
 **ResetScriptsFolder** - The name of the folder that holds the scripts to reset (drop/create) the database. Defaults to "ResetScripts". This should be a relative path from the directory where SqlCi.Console.exe is ran from.
+
 **ResetDatabase** - A boolean value that determines if the database should be reset (dropped/created) by running the scripts in the folder specified by the ResetScriptsFolder value.
+
 **ScriptsFolder** - The name of the folder that holds the schema and data population scripts that should be ran against the database specified in the "Database" connection string setting. This should be a relative path from the directory where SqlCi.Console.exe is ran from. 
 
 # Usage

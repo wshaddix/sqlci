@@ -34,7 +34,7 @@ namespace SqlCi.ScriptRunner.Tests
                 new ScriptConfiguration()
                     .WithConnectionString("blah")
                     .WithScriptsFolder(".")
-                    .ResetDatabase(true)
+                    .WithResetDatabase(true)
                     .Verify();
             });
         }
@@ -86,8 +86,8 @@ namespace SqlCi.ScriptRunner.Tests
                     .WithConnectionString("blah")
                     .WithScriptsFolder(".")
                     .WithReleaseNumber("1.0")
-                    .ResetDatabase(true)
-                    .ResetFolder("blah")
+                    .WithResetDatabase(true)
+                    .WithResetFolder("blah")
                     .WithScriptTable("ScriptsTable")
                     .Verify();
             });

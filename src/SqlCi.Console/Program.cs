@@ -35,9 +35,8 @@ namespace SqlCi.Console
                 var scriptConfiguration = new ScriptConfiguration()
                     .WithConnectionString(config.ConnectionString)
                     .WithScriptsFolder(config.ScriptsFolder)
-                    .ResetDatabase(config.ResetDatabase)
-                    .ResetFolder(config.ResetFolder)
-                    .LogToConsole(true)
+                    .WithResetDatabase(config.ResetDatabase)
+                    .WithResetFolder(config.ResetFolder)
                     .WithReleaseNumber(config.ReleaseNumber)
                     .WithScriptTable(config.ScriptTable)
                     .Verify();

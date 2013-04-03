@@ -10,5 +10,6 @@
         internal string ScriptTable { get; set; }
         internal bool UseConfigFile { get; set; }
         internal bool ShowHelp { get; set; }
+        internal string RollBackToVersion { get; set; }
     }
 }

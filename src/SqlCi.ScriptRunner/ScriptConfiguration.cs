@@ -1,9 +1,7 @@
 ﻿
-using System;
-using System.Collections.Generic;
-using System.IO;
 using SqlCi.ScriptRunner.Constants;
 using SqlCi.ScriptRunner.Exceptions;
+using System.IO;
 
 namespace SqlCi.ScriptRunner
 {
@@ -12,18 +10,16 @@ namespace SqlCi.ScriptRunner
         private string _connectionString;
         private string _scriptsFolder;
         private string _resetFolder;
-        private bool _logToConsole;
         private string _releaseNumber;
         private string _scriptTable;
         private bool _resetDatabase;
         private bool _verified;
-        private List<string> _errors;
 
         public string ScriptsFolder
         {
             get { return _scriptsFolder; }
         }
-        
+
         public string ConnectionString
         {
             get { return _connectionString; }
@@ -39,14 +35,19 @@ namespace SqlCi.ScriptRunner
             get { return _releaseNumber; }
         }
 
-        public ScriptConfiguration()
-        {
-            _errors = new List<string>();
-        }
-        
         public bool IsVerified
         {
             get { return _verified; }
+        }
+
+        public bool ResetDatabase
+        {
+            get { return _resetDatabase; }
+        }
+
+        public string ResetFolder
+        {
+            get { return _resetFolder; }
         }
 
         public ScriptConfiguration WithConnectionString(string connectionString)
@@ -61,21 +62,15 @@ namespace SqlCi.ScriptRunner
             return this;
         }
 
-        public ScriptConfiguration ResetDatabase(bool resetDatabase)
+        public ScriptConfiguration WithResetDatabase(bool resetDatabase)
         {
             _resetDatabase = resetDatabase;
             return this;
         }
 
-        public ScriptConfiguration ResetFolder(string resetFolder)
+        public ScriptConfiguration WithResetFolder(string resetFolder)
         {
             _resetFolder = resetFolder;
-            return this;
-        }
-
-        public ScriptConfiguration LogToConsole(bool logToConsole)
-        {
-            _logToConsole = logToConsole;
             return this;
         }
 
@@ -100,13 +95,10 @@ namespace SqlCi.ScriptRunner
             ValidateResetFolder();
             ValidateReleaseNumber();
             ValidateScriptTable();
-            
+
             // if we got this far without errors then we are ready to run scripts
-            if (_errors.Count == 0)
-            {
-                _verified = true;
-            }
-            
+            _verified = true;
+           
             return this;
         }
 
@@ -159,5 +151,6 @@ namespace SqlCi.ScriptRunner
                 throw new ResetFolderDoesNotExistException(ExceptionMessages.ResetFolderDoesNotExist);
             }
         }
+
     }
 }
