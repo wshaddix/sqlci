@@ -65,6 +65,20 @@ namespace SqlCi.ScriptRunner.Tests
         }
 
         [Fact]
+        public void MissingEnvironmentThrowsException()
+        {
+            Assert.Throws<MissingEnvironmentException>(() =>
+            {
+                new ScriptConfiguration()
+                    .WithConnectionString("blah")
+                    .WithScriptsFolder(".")
+                    .WithReleaseNumber("1.0")
+                    .WithScriptTable("ScriptTable")
+                    .Verify();
+            });
+        }
+
+        [Fact]
         public void NonExistantScriptFolderThrowsException()
         {
             Assert.Throws<ScriptsFolderDoesNotExistException>(() =>

@@ -14,6 +14,7 @@ namespace SqlCi.ScriptRunner
         private string _scriptTable;
         private bool _resetDatabase;
         private bool _verified;
+        private string _environment;
 
         public string ScriptsFolder
         {
@@ -48,6 +49,11 @@ namespace SqlCi.ScriptRunner
         public string ResetFolder
         {
             get { return _resetFolder; }
+        }
+
+        public string Environment
+        {
+            get { return _environment; }
         }
 
         public ScriptConfiguration WithConnectionString(string connectionString)
@@ -86,6 +92,12 @@ namespace SqlCi.ScriptRunner
             return this;
         }
 
+        public ScriptConfiguration WithEnvironment(string environment)
+        {
+            _environment = environment;
+            return this;
+        }
+
         public ScriptConfiguration Verify()
         {
             // do a sanity check on our variables and make sure we have
@@ -95,11 +107,20 @@ namespace SqlCi.ScriptRunner
             ValidateResetFolder();
             ValidateReleaseNumber();
             ValidateScriptTable();
+            ValidateEnvironment();
 
             // if we got this far without errors then we are ready to run scripts
             _verified = true;
-           
+
             return this;
+        }
+
+        private void ValidateEnvironment()
+        {
+            if (string.IsNullOrEmpty(_environment))
+            {
+                throw new MissingEnvironmentException(ExceptionMessages.MissingEnvironment);
+            }
         }
 
         private void ValidateScriptsFolder()
@@ -151,6 +172,5 @@ namespace SqlCi.ScriptRunner
                 throw new ResetFolderDoesNotExistException(ExceptionMessages.ResetFolderDoesNotExist);
             }
         }
-
     }
 }

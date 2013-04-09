@@ -10,5 +10,6 @@
         internal static string NotVerified = "You cannot call Execute() before calling Verify().";
         internal static string ScriptsFolderDoesNotExist = "Scripts folder does not exist.";
         internal static string ResetFolderDoesNotExist = "Reset scripts folder does not exist.";
+        internal static string MissingEnvironment = "Environment cannot be blank.";
     }
 }

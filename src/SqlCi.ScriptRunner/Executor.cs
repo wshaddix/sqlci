@@ -1,4 +1,5 @@
-﻿using SqlCi.ScriptRunner.Constants;
+﻿using System.Text.RegularExpressions;
+using SqlCi.ScriptRunner.Constants;
 using SqlCi.ScriptRunner.Events;
 using SqlCi.ScriptRunner.Exceptions;
 using System;
@@ -46,8 +47,8 @@ namespace SqlCi.ScriptRunner
             }
 
             // deploy
-            UpdateStatus("Deploying version: {0}", scriptConfiguration.ReleaseNumber);
-            var results =  Deploy();
+            UpdateStatus("Deploying version {0} to {1}", scriptConfiguration.ReleaseNumber, _scriptConfiguration.Environment);
+            var results = Deploy();
 
             UpdateStatus("Deployment Complete.");
 
@@ -210,9 +211,13 @@ namespace SqlCi.ScriptRunner
         }
 
         private List<string> LoadSqlScriptFiles(string directory)
-        {            
+        {
+            // we want to load scripts that start with <sequence>_all_*.sql or <sequence>_<environment>_*.sql
+            const string allRegex = @"[0-9]+_all_.*";
+            var envRegex = string.Format("[0-9]+_{0}_.*", _scriptConfiguration.Environment);
+
             var filesPaths = Directory.GetFiles(directory, "*.sql");
-            return filesPaths.Select(Path.GetFileName).ToList();
+            return filesPaths.Select(Path.GetFileName).Where(fn => Regex.IsMatch(fn, allRegex,RegexOptions.IgnoreCase) || Regex.IsMatch(fn, envRegex, RegexOptions.IgnoreCase)).ToList();
         }
 
         private bool EnsureScriptTableExists()

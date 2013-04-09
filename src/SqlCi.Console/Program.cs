@@ -39,6 +39,7 @@ namespace SqlCi.Console
                     .WithResetFolder(config.ResetFolder)
                     .WithReleaseNumber(config.ReleaseNumber)
                     .WithScriptTable(config.ScriptTable)
+                    .WithEnvironment(config.Environment)
                     .Verify();
 
                 // execute the scripts
@@ -74,6 +75,7 @@ namespace SqlCi.Console
                     {"st|scriptTable=", "The name of the script table", p => config.ScriptTable = p },
                     {"rv|releaseVersion=", "The version of this release",  p => config.ReleaseNumber = p},
                     {"sf|scriptsFolder=", "The folder that holds the sql scripts to be ran",  p => config.ScriptsFolder = p},
+                    {"ev|environment=", "The environment that the scripts are being ran in",  p => config.Environment = p},
                     {"rd|resetDatabase", "Determines if the database should be reset", p => config.ResetDatabase = p != null},
                     {"rf|resetFolder=", "The folder that holds the database reset scripts to be ran if resetDatabase is specified", p => config.ResetFolder = p},
                     {"h|help", "show this message and exit", p => config.ShowHelp = p != null}
