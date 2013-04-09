@@ -118,7 +118,13 @@ namespace SqlCi.Console
             }
             config.ReleaseNumber = GetReleaseNumber();
             config.ScriptTable = GetScriptTable();
+            config.Environment = GetEnvironment();
             return config;
+        }
+
+        private static string GetEnvironment()
+        {
+            return ConfigurationManager.AppSettings["Environment"];
         }
 
         private static string GetScriptTable()
@@ -133,7 +139,7 @@ namespace SqlCi.Console
 
         private static string GetResetFolder()
         {
-            return ConfigurationManager.AppSettings["ResetScriptsFolder"];
+            return ConfigurationManager.AppSettings["ResetFolder"];
         }
 
         private static bool GetResetDatabase()

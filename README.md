@@ -11,8 +11,6 @@ A very simple sql script migration utility for continuous integration and automa
 - Support scripts that need to change databases. For example a script that runs in "MyDatabase" but also needs to create a job via msdb
 - Support running different scripts in different environments. For example you may have data population scripts that use different values between your workstation, dev, qa and production environments.
 
-**Non-Goal** - A specific non-goal is to support scripts that use the GO keyword to separate statements that are dependent on the prior statement being committed to the database. It's far easier to just make multiple scripts and makes the development of the tool easier to maintain and reduces dependencies.
-
 # Configuration
 All configuration is done through the SqlCi.Console.exe.config file. This format was chosen over command line arguments simply because Octopus Deploy has built in support for modifying the .config files with variables that are specific to each environment/role and it also does not exclude the tool being used by other automation platforms. You'll need to specify a connection string to the database to run the scripts against as well as some appSetting entries as shown below.
 

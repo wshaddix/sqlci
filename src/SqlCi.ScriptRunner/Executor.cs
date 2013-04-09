@@ -60,7 +60,7 @@ namespace SqlCi.ScriptRunner
         {
             // load the reset sql scripts
             UpdateStatus("Loading reset script(s) from {0} ...", _scriptConfiguration.ResetFolder);
-            var resetScripts = LoadSqlScriptFiles(_scriptConfiguration.ResetFolder);
+            var resetScripts = LoadSqlScriptFiles(_scriptConfiguration.ResetFolder, true);
             UpdateStatus("Loaded {0} reset script(s) from {1} ...", resetScripts.Count, _scriptConfiguration.ResetFolder);
 
             // if there are no scripts to run, just exit
@@ -70,15 +70,23 @@ namespace SqlCi.ScriptRunner
                 return;
             }
 
+            // show which scripts were loaded
+            foreach (var scriptFile in resetScripts)
+            {
+                UpdateStatus("\t{0}", scriptFile);
+            }
+
             // run the scripts
+            UpdateStatus("Resetting Database ...");
             foreach (var sqlScriptFileName in resetScripts)
             {
-                UpdateStatus("Applying reset script {0} ...", sqlScriptFileName);
+                UpdateStatus("\tApplying reset script {0} ...", sqlScriptFileName);
                 RunScriptFile(_scriptConfiguration.ResetFolder, sqlScriptFileName, true);
             }
 
             UpdateStatus("Database reset complete.");
         }
+        
         private ExecutionResults Deploy()
         {
             // load the sql scripts
@@ -91,6 +99,12 @@ namespace SqlCi.ScriptRunner
             {
                 UpdateStatus("No change script(s) to execute.");
                 return new ExecutionResults(true);
+            }
+            
+            // show which scripts were loaded
+            foreach (var scriptFile in allScriptFiles)
+            {
+                UpdateStatus("\t{0}", scriptFile);
             }
 
             try
@@ -108,6 +122,12 @@ namespace SqlCi.ScriptRunner
                     var ranScriptFiles = GetRanScripts();
                     UpdateStatus("Found {0} change script(s) that have already been applied ...", ranScriptFiles.Count());
 
+                    // show which scripts were applied
+                    foreach (var scriptFile in ranScriptFiles)
+                    {
+                        UpdateStatus("\t{0}", scriptFile);
+                    }
+
                     // remove any scripts that have already ran 
                     UpdateStatus("Calculating which new change script(s) need to be applied ...");
                     sqlScriptFiles = allScriptFiles.Except(ranScriptFiles).ToList();
@@ -124,7 +144,7 @@ namespace SqlCi.ScriptRunner
                 // run the scripts
                 foreach (var sqlScriptFileName in sqlScriptFiles)
                 {
-                    UpdateStatus("Applying change script {0} ...", sqlScriptFileName);
+                    UpdateStatus("\tApplying change script {0} ...", sqlScriptFileName);
                     RunScriptFile(_scriptConfiguration.ScriptsFolder, sqlScriptFileName);
                     AuditScriptRan(sqlScriptFileName);
                 }
@@ -180,11 +200,18 @@ namespace SqlCi.ScriptRunner
             OpenSqlConnection(resettingDatabase);
 
             var sqlText = File.ReadAllText(Path.Combine(folder, sqlScriptFileName));
-            using (var cmd = _sqlConnection.CreateCommand())
+            var regex = new Regex(@"\s*GO\s*$", RegexOptions.IgnoreCase | RegexOptions.Multiline);
+            var lines = regex.Split(sqlText);
+
+            foreach (var line in lines.Where(line => line.Length > 0))
             {
-                cmd.CommandText = sqlText;
-                cmd.ExecuteNonQuery();
+                using (var cmd = _sqlConnection.CreateCommand())
+                {
+                    cmd.CommandText = line;
+                    cmd.ExecuteNonQuery();
+                }
             }
+           
         }
 
         private List<string> GetRanScripts()
@@ -210,14 +237,15 @@ namespace SqlCi.ScriptRunner
             return ranScripts;
         }
 
-        private List<string> LoadSqlScriptFiles(string directory)
+        private List<string> LoadSqlScriptFiles(string directory, bool loadAll=false)
         {
             // we want to load scripts that start with <sequence>_all_*.sql or <sequence>_<environment>_*.sql
             const string allRegex = @"[0-9]+_all_.*";
             var envRegex = string.Format("[0-9]+_{0}_.*", _scriptConfiguration.Environment);
 
             var filesPaths = Directory.GetFiles(directory, "*.sql");
-            return filesPaths.Select(Path.GetFileName).Where(fn => Regex.IsMatch(fn, allRegex,RegexOptions.IgnoreCase) || Regex.IsMatch(fn, envRegex, RegexOptions.IgnoreCase)).ToList();
+
+            return loadAll ? filesPaths.Select(Path.GetFileName).ToList() : filesPaths.Select(Path.GetFileName).Where(fn => Regex.IsMatch(fn, allRegex,RegexOptions.IgnoreCase) || Regex.IsMatch(fn, envRegex, RegexOptions.IgnoreCase)).ToList();
         }
 
         private bool EnsureScriptTableExists()
