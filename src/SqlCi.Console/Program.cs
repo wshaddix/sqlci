@@ -1,4 +1,5 @@
-﻿using Mono.Options;
+﻿using System.IO;
+using Mono.Options;
 using SqlCi.ScriptRunner;
 using System;
 using System.Configuration;
@@ -9,6 +10,15 @@ namespace SqlCi.Console
     {
         static int Main(string[] args)
         {
+            // if we only have one arg and it is 'g' then the user just wants to generate a new sql 
+            // script file
+            if (args.Length == 4 && args[0].StartsWith("g"))
+            {
+                var fileName = string.Format("{0}_{1}_{2}.sql",DateTime.Now.ToString("yyyyMMddHHmmssfff"), args[1], args[2]);
+                File.CreateText(string.Format(@"{0}\{1}", args[3], fileName));
+                return 0;
+            }
+
             ConfigurationValues config;
             var optionSet = DefineOptionSet(args, out config);
 
@@ -17,7 +27,7 @@ namespace SqlCi.Console
                 return -1;
             }
 
-            if (config.ShowHelp)
+            if (config.ShowHelp || args.Length == 0)
             {
                 ShowHelp(optionSet);
                 return 0;
@@ -40,12 +50,16 @@ namespace SqlCi.Console
                     .WithReleaseNumber(config.ReleaseNumber)
                     .WithScriptTable(config.ScriptTable)
                     .WithEnvironment(config.Environment)
+                    .WithResetConnectionString(config.ResetConnectionString)
                     .Verify();
 
-                // execute the scripts
+                
                 var executor = new Executor();
+
+                // write any status updates that the executor sends to the console
                 executor.StatusUpdate += (sender, @event) => System.Console.WriteLine(@event.Status);
 
+                // run the scripts
                 var executionResults = executor.Execute(scriptConfiguration);
 
                 // if we were successful return 0
@@ -78,6 +92,7 @@ namespace SqlCi.Console
                     {"ev|environment=", "The environment that the scripts are being ran in",  p => config.Environment = p},
                     {"rd|resetDatabase", "Determines if the database should be reset", p => config.ResetDatabase = p != null},
                     {"rf|resetFolder=", "The folder that holds the database reset scripts to be ran if resetDatabase is specified", p => config.ResetFolder = p},
+                    {"rc|resetConnectionString=", "The connectoin string to use to reset the database", p => config.ResetConnectionString = p},
                     {"h|help", "show this message and exit", p => config.ShowHelp = p != null}
                 };
 
@@ -115,6 +130,7 @@ namespace SqlCi.Console
             if (config.ResetDatabase)
             {
                 config.ResetFolder = GetResetFolder();
+                config.ResetConnectionString = GetResetConnectionString();
             }
             config.ReleaseNumber = GetReleaseNumber();
             config.ScriptTable = GetScriptTable();
@@ -160,7 +176,7 @@ namespace SqlCi.Console
 
             if (null == connectionStringSettings)
             {
-                throw new ApplicationException("ERROR: There is no connection string named 'Database' in the configuration file.");
+                throw new ApplicationException("There is no connection string named 'Database' in the configuration file.");
             }
 
             // grab the connection string
@@ -168,7 +184,28 @@ namespace SqlCi.Console
 
             if (string.IsNullOrEmpty(connectionString))
             {
-                System.Console.WriteLine("ERROR: The connectionString attribute of the 'Database' connection string in the configuration file is empty");
+                System.Console.WriteLine("The connectionString attribute of the 'Database' connection string in the configuration file is empty");
+                return string.Empty;
+            }
+
+            return connectionString;
+        }
+
+        private static string GetResetConnectionString()
+        {
+            var connectionStringSettings = ConfigurationManager.ConnectionStrings["ResetDatabase"];
+
+            if (null == connectionStringSettings)
+            {
+                throw new ApplicationException("There is no connection string named 'ResetDatabase' in the configuration file.");
+            }
+
+            // grab the connection string
+            string connectionString = connectionStringSettings.ConnectionString;
+
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                System.Console.WriteLine("The connectionString attribute of the 'ResetDatabase' connection string in the configuration file is empty");
                 return string.Empty;
             }
 

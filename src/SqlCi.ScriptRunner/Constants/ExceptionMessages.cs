@@ -2,7 +2,8 @@
 {
     internal static class ExceptionMessages
     {
-        internal static string MissingConnectionString = "Connection string cannot be blank.";
+        internal static string MissingConnectionString = "Connection string \"Database\" cannot be blank.";
+        internal static string MissingResetConnectionString = "Connection string \"ResetDatabase\" cannot be blank.";
         internal static string MissingScriptsFolder = "Scripts folder cannot be blank.";
         internal static string MissingResetFolder = "Rest folder cannot be blank if you specify ResetDatabase(true).";
         internal static string MissingReleaseNumber = "Release number cannot be blank.";

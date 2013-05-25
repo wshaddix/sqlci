@@ -85,6 +85,8 @@ namespace SqlCi.ScriptRunner
             }
 
             UpdateStatus("Database reset complete.");
+
+            CloseSqlConnection();
         }
         
         private ExecutionResults Deploy()
@@ -305,10 +307,20 @@ namespace SqlCi.ScriptRunner
             
             if (_sqlConnection.State == ConnectionState.Closed)
             {
-                UpdateStatus("Opening connection to sql server using connection string: {0} ...", _scriptConfiguration.ConnectionString);
-                _sqlConnection.ConnectionString = _scriptConfiguration.ConnectionString;
-                _sqlConnection.Open();
-                _database = _sqlConnection.Database;
+                if (resettingDatabase)
+                {
+                    UpdateStatus("Opening connection to sql server using connection string: {0} ...", _scriptConfiguration.ResetConnectionString);
+                    _sqlConnection.ConnectionString = _scriptConfiguration.ResetConnectionString;
+                    _sqlConnection.Open();
+                }
+                else
+                {
+                    UpdateStatus("Opening connection to sql server using connection string: {0} ...", _scriptConfiguration.ConnectionString);
+                    _sqlConnection.ConnectionString = _scriptConfiguration.ConnectionString;
+                    _sqlConnection.Open();
+                    _database = _sqlConnection.Database;
+                }
+                
             }
 
             if (_sqlConnection.State == ConnectionState.Open && !resettingDatabase)
@@ -329,8 +341,6 @@ namespace SqlCi.ScriptRunner
             }
         }
 
-        // Wrap event invocations inside a protected virtual method 
-        // to allow derived classes to override the event invocation behavior 
         protected virtual void OnRaiseStatusUpdateEvent(StatusUpdateEvent e)
         {
             // Make a temporary copy of the event to avoid possibility of 

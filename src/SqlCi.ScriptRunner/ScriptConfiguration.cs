@@ -8,6 +8,7 @@ namespace SqlCi.ScriptRunner
     public class ScriptConfiguration
     {
         private string _connectionString;
+        private string _resetConnectionString;
         private string _scriptsFolder;
         private string _resetFolder;
         private string _releaseNumber;
@@ -56,6 +57,11 @@ namespace SqlCi.ScriptRunner
             get { return _environment; }
         }
 
+        public string ResetConnectionString
+        {
+            get { return _resetConnectionString; }
+        }
+
         public ScriptConfiguration WithConnectionString(string connectionString)
         {
             _connectionString = connectionString;
@@ -98,6 +104,12 @@ namespace SqlCi.ScriptRunner
             return this;
         }
 
+        public ScriptConfiguration WithResetConnectionString(string resetConnectionString)
+        {
+            _resetConnectionString = resetConnectionString;
+            return this;
+        }
+
         public ScriptConfiguration Verify()
         {
             // do a sanity check on our variables and make sure we have
@@ -108,6 +120,7 @@ namespace SqlCi.ScriptRunner
             ValidateReleaseNumber();
             ValidateScriptTable();
             ValidateEnvironment();
+            ValidateResetConnectionString();
 
             // if we got this far without errors then we are ready to run scripts
             _verified = true;
@@ -170,6 +183,14 @@ namespace SqlCi.ScriptRunner
             if (_resetDatabase && !Directory.Exists(_resetFolder))
             {
                 throw new ResetFolderDoesNotExistException(ExceptionMessages.ResetFolderDoesNotExist);
+            }
+        }
+
+        private void ValidateResetConnectionString()
+        {
+            if (_resetDatabase && string.IsNullOrEmpty(_resetConnectionString))
+            {
+                throw new MissingConnectionStringException(ExceptionMessages.MissingResetConnectionString);
             }
         }
     }

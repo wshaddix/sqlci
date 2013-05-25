@@ -12,5 +12,6 @@
         internal bool ShowHelp { get; set; }
         internal string RollBackToVersion { get; set; }
         internal string Environment { get; set; }
+        internal string ResetConnectionString { get; set; }
     }
 }
