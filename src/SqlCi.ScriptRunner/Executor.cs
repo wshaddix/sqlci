@@ -288,7 +288,7 @@ namespace SqlCi.ScriptRunner
 
         private void CreateScriptTable()
         {
-            var sqlText = string.Format("create table {0} (Id nvarchar(5) not null constraint pk primary key clustered, Script nvarchar(255) not null, Release nvarchar(25) not null, AppliedOnUtc datetime not null)", _scriptConfiguration.ScriptTable);
+            var sqlText = string.Format("create table {0} (Id nvarchar(50) not null constraint pk primary key clustered, Script nvarchar(255) not null, Release nvarchar(25) not null, AppliedOnUtc datetime not null)", _scriptConfiguration.ScriptTable);
             OpenSqlConnection();
             using (var cmd = _sqlConnection.CreateCommand())
             {
