@@ -92,15 +92,29 @@ An example of configuring from the command line would look like:
 # Script Naming Conventions
 Every script must be named with a sequence number followed by an underscore followed by either the word "all" or the environment (dev|qa|prod|etc). An example would be
 
-	0001_all_Create_Customer_Table.sql
-	0002_all_Create_Order_Table.sql
-	0003_all_Create_OrderItem_Table.sql
-	0004_all_Create_States_Table.sql
-	0005_dev_Populate_States_Table.sql
-	0005_qa_Populate_States_Table.sql
-	0005_prod_Populate_States_Table.sql
+	20130717141326951_all_Create_Customer_Table.sql
+	20130717141326952_all_Create_Order_Table.sql
+	20130717141326953_all_Create_OrderItem_Table.sql
+	20130717141326954_all_Create_States_Table.sql
+	20130717141326955_dev_Populate_States_Table.sql
+	20130717141326956_qa_Populate_States_Table.sql
+	20130717141326957_prod_Populate_States_Table.sql
 
 
 SqlCi will take the file name and strip the first N characters before the first underscore and use that as the sequence to sort by when running the scripts. Technically you can use any naming convention where the characters before the first underscore sorts sequentially. 
 
-Next it will take every file that has _all_ following the sequence number as well as scripts that have _<environment>_ following the sequence number and run those scripts. The environment value is based on the -ev parameter passed to SqlCi.exe. The parameter value must match the naming convention for the script name.
+Next it will take every file that has "_all_" following the sequence number as well as scripts that have "_environment_" following the sequence number and run those scripts. The environment value is based on the -ev parameter passed to SqlCi.exe. The parameter value must match the naming convention for the script name. In the example file names above all of the files with "_all_" in the name will be ran in every environment and the file with "_dev_" in the name will only be ran when SqlCi.Console.exe is ran with -ev=dev as a command line parameter or <Environment>Dev</Environment> is set in the SqlCi.Console.exe.config file
+
+# Automatically Generating Scripts
+You can use SqlCi.Console.exe to automatically generate a .sql file with a timestamp as the sequence number. This is useful when multiple developers are working on the database at the same time and ensures that you don't have duplicate sequence numbers. 
+
+	c:\>SqlCi.Console.exe g <environment> <script_name> <script_folder>
+
+The following example shows how to create a script in the "scripts" directory that will be ran in all environments that adds a User table to the database
+
+	c:\>SqlCi.Console.exe g all add_user_table scripts
+
+Running this command results in a file being created in the "scripts" directory with a name similar to 
+
+	20130717141326951_all_add_user_table.sql
+
