@@ -1,5 +1,6 @@
 # Sql CI
 
+[![](http://i.imgur.com/g1WHerF.png)](http://www.ndepend.com)
 
 A very simple sql script migration utility for continuous integration and automated deployments
 
