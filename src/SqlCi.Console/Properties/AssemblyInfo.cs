@@ -6,9 +6,9 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTitle("SqlCi.Console")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
+[assembly: AssemblyCompany("Wes Shaddix <wshaddix@gmail.com>")]
 [assembly: AssemblyProduct("SqlCi.Console")]
-[assembly: AssemblyCopyright("Copyright ©  2013")]
+[assembly: AssemblyCopyright("Copyright ©  2014")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

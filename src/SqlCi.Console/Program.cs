@@ -1,8 +1,10 @@
 ﻿using Mono.Options;
 using SqlCi.ScriptRunner;
 using System;
+using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 
 namespace SqlCi.Console
@@ -22,10 +24,11 @@ namespace SqlCi.Console
                     {"sf|scriptsFolder=", "The folder that holds the sql scripts to be ran",  p => config.ScriptsFolder = p},
                     {"ev|environment=", "The environment that the scripts are being ran in",  p => config.Environment = p},
                     {"rd|resetDatabase", "Determines if the database should be reset", p => config.ResetDatabase = p != null},
-                    {"rf|resetFolder=", "The folder that holds the database reset scripts to be ran if resetDatabase is specified", p => config.ResetFolder = p},
-                    {"rc|resetConnectionString=", "The connectoin string to use to reset the database", p => config.ResetConnectionString = p},
+                    {"rf|resetScriptsFolder=", "The folder that holds the database reset scripts to be ran if resetDatabase is specified", p => config.ResetScriptsFolder = p},
+                    {"rc|resetConnectionString=", "The connection string to use to reset the database", p => config.ResetConnectionString = p},
                     {"h|help", "show this message and exit", p => config.ShowHelp = p != null},
                     {"v|version", "show the version number", p => config.VersionNumber = p != null},
+                    {"sh|showHistory", "show the history of scripts ran against the database", p => config.ShowHistory = p != null},
                 };
 
             try
@@ -52,7 +55,7 @@ namespace SqlCi.Console
             config.ResetDatabase = GetResetDatabase();
             if (config.ResetDatabase)
             {
-                config.ResetFolder = GetResetFolder();
+                config.ResetScriptsFolder = GetResetScriptsFolder();
                 config.ResetConnectionString = GetResetConnectionString();
             }
             config.ReleaseNumber = GetReleaseNumber();
@@ -120,9 +123,9 @@ namespace SqlCi.Console
             return resetDatabase;
         }
 
-        private static string GetResetFolder()
+        private static string GetResetScriptsFolder()
         {
-            return ConfigurationManager.AppSettings["ResetFolder"];
+            return ConfigurationManager.AppSettings["ResetScriptsFolder"];
         }
 
         private static string GetScriptsFolder()
@@ -137,8 +140,7 @@ namespace SqlCi.Console
 
         private static int Main(string[] args)
         {
-            // if we only have one arg and it is 'g' then the user just wants to generate a new sql
-            // script file
+            // if the 1st arg is 'g' then the user just wants to generate a new sql script file
             if (args.Length == 4 && args[0].StartsWith("g"))
             {
                 var fileName = string.Format("{0}_{1}_{2}.sql", DateTime.Now.ToString("yyyyMMddHHmmssfff"), args[1], args[2]);
@@ -179,7 +181,7 @@ namespace SqlCi.Console
                     .WithConnectionString(config.ConnectionString)
                     .WithScriptsFolder(config.ScriptsFolder)
                     .WithResetDatabase(config.ResetDatabase)
-                    .WithResetFolder(config.ResetFolder)
+                    .WithResetFolder(config.ResetScriptsFolder)
                     .WithReleaseNumber(config.ReleaseNumber)
                     .WithScriptTable(config.ScriptTable)
                     .WithEnvironment(config.Environment)
@@ -191,7 +193,13 @@ namespace SqlCi.Console
                 // write any status updates that the executor sends to the console
                 executor.StatusUpdate += (sender, @event) => System.Console.WriteLine(@event.Status);
 
-                // run the scripts
+                if (config.ShowHistory)
+                {
+                    var runHistory = executor.GetHistory(scriptConfiguration);
+                    ShowHistory(runHistory);
+                    return 0;
+                }
+
                 var executionResults = executor.Execute(scriptConfiguration);
 
                 // if we were successful return 0
@@ -222,6 +230,33 @@ namespace SqlCi.Console
             System.Console.WriteLine();
             System.Console.WriteLine("Options:");
             optionSet.WriteOptionDescriptions(System.Console.Out);
+        }
+
+        private static void ShowHistory(IEnumerable<Script> runHistory)
+        {
+            // sort the list by date & name
+            var sortedList = runHistory.OrderBy(s => s.AppliedOnUtc).ThenBy(s => s.Name).ToList();
+
+            // print the headers
+            System.Console.WriteLine();
+            System.Console.WriteLine("Version\t\tDate Ran\t\t\tScript Name");
+            System.Console.WriteLine("=======\t\t========\t\t\t===========");
+
+            // if no scripts have been ran then nothing to do.
+            if (sortedList.Count == 0)
+            {
+                System.Console.WriteLine();
+                System.Console.WriteLine("Current Database Version: 0.0.0 - No script files have been ran.");
+            }
+
+            // print the scripts
+            foreach (var script in sortedList)
+            {
+                System.Console.WriteLine("{0}\t\t{1}\t\t{2}", script.Release, script.AppliedOnUtc.ToLocalTime(), script.Name);
+            }
+
+            System.Console.WriteLine();
+            System.Console.WriteLine("Current Database Version: {0} ({1})", sortedList.Last().Release, sortedList.Last().AppliedOnUtc.ToLocalTime());
         }
 
         private static void ShowVersion()

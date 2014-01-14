@@ -56,6 +56,7 @@
     <Compile Include="Exceptions\ScriptsFolderDoesNotExistException.cs" />
     <Compile Include="ExecutionResults.cs" />
     <Compile Include="Executor.cs" />
+    <Compile Include="Script.cs" />
     <Compile Include="ScriptConfiguration.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
