@@ -29,6 +29,7 @@ namespace SqlCi.Console
                     {"h|help", "show this message and exit", p => config.ShowHelp = p != null},
                     {"v|version", "show the version number", p => config.VersionNumber = p != null},
                     {"sh|showHistory", "show the history of scripts ran against the database", p => config.ShowHistory = p != null},
+                    {"g|generateScript", "generates a new script file. Usage: g <environment> <script_name> <script_folder>", p => config.GenerateScript = p != null}
                 };
 
             try

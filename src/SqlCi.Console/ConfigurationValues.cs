@@ -15,5 +15,6 @@
         internal bool ShowHistory { get; set; }
         internal bool UseConfigFile { get; set; }
         internal bool VersionNumber { get; set; }
+        internal bool GenerateScript { get; set; }
     }
 }

@@ -1,5 +1,4 @@
-﻿
-using SqlCi.ScriptRunner.Constants;
+﻿using SqlCi.ScriptRunner.Constants;
 using SqlCi.ScriptRunner.Exceptions;
 using System.IO;
 
@@ -8,58 +7,67 @@ namespace SqlCi.ScriptRunner
     public class ScriptConfiguration
     {
         private string _connectionString;
-        private string _resetConnectionString;
-        private string _scriptsFolder;
-        private string _resetFolder;
-        private string _releaseNumber;
-        private string _scriptTable;
-        private bool _resetDatabase;
-        private bool _verified;
         private string _environment;
-
-        public string ScriptsFolder
-        {
-            get { return _scriptsFolder; }
-        }
-
+        private string _releaseNumber;
+        private string _resetConnectionString;
+        private bool _resetDatabase;
+        private string _resetFolder;
+        private string _scriptsFolder;
+        private string _scriptTable;
+        private bool _verified;
         public string ConnectionString
         {
             get { return _connectionString; }
         }
-
+        public string Environment
+        {
+            get { return _environment; }
+        }
+        public bool IsVerified
+        {
+            get { return _verified; }
+        }
+        public string ReleaseNumber
+        {
+            get { return _releaseNumber; }
+        }
+        public string ResetConnectionString
+        {
+            get { return _resetConnectionString; }
+        }
+        public bool ResetDatabase
+        {
+            get { return _resetDatabase; }
+        }
+        public string ResetFolder
+        {
+            get { return _resetFolder; }
+        }
+        public string ScriptsFolder
+        {
+            get { return _scriptsFolder; }
+        }
         public string ScriptTable
         {
             get { return _scriptTable; }
         }
 
-        public string ReleaseNumber
+        public ScriptConfiguration Verify()
         {
-            get { return _releaseNumber; }
-        }
+            // do a sanity check on our variables and make sure we have everything we need to run
+            // the scripts
+            ValidateConnectionString();
+            ValidateScriptsFolder();
+            ValidateResetFolder();
+            ValidateReleaseNumber();
+            ValidateScriptTable();
+            ValidateEnvironment();
+            ValidateResetConnectionString();
 
-        public bool IsVerified
-        {
-            get { return _verified; }
-        }
+            // if we got this far without errors then we are ready to run scripts
+            _verified = true;
 
-        public bool ResetDatabase
-        {
-            get { return _resetDatabase; }
-        }
-
-        public string ResetFolder
-        {
-            get { return _resetFolder; }
-        }
-
-        public string Environment
-        {
-            get { return _environment; }
-        }
-
-        public string ResetConnectionString
-        {
-            get { return _resetConnectionString; }
+            return this;
         }
 
         public ScriptConfiguration WithConnectionString(string connectionString)
@@ -68,9 +76,21 @@ namespace SqlCi.ScriptRunner
             return this;
         }
 
-        public ScriptConfiguration WithScriptsFolder(string scriptsFolder)
+        public ScriptConfiguration WithEnvironment(string environment)
         {
-            _scriptsFolder = scriptsFolder;
+            _environment = environment;
+            return this;
+        }
+
+        public ScriptConfiguration WithReleaseNumber(string releaseNumber)
+        {
+            _releaseNumber = releaseNumber;
+            return this;
+        }
+
+        public ScriptConfiguration WithResetConnectionString(string resetConnectionString)
+        {
+            _resetConnectionString = resetConnectionString;
             return this;
         }
 
@@ -86,9 +106,9 @@ namespace SqlCi.ScriptRunner
             return this;
         }
 
-        public ScriptConfiguration WithReleaseNumber(string releaseNumber)
+        public ScriptConfiguration WithScriptsFolder(string scriptsFolder)
         {
-            _releaseNumber = releaseNumber;
+            _scriptsFolder = scriptsFolder;
             return this;
         }
 
@@ -98,34 +118,12 @@ namespace SqlCi.ScriptRunner
             return this;
         }
 
-        public ScriptConfiguration WithEnvironment(string environment)
+        private void ValidateConnectionString()
         {
-            _environment = environment;
-            return this;
-        }
-
-        public ScriptConfiguration WithResetConnectionString(string resetConnectionString)
-        {
-            _resetConnectionString = resetConnectionString;
-            return this;
-        }
-
-        public ScriptConfiguration Verify()
-        {
-            // do a sanity check on our variables and make sure we have
-            // everything we need to run the scripts
-            ValidateConnectionString();
-            ValidateScriptsFolder();
-            ValidateResetFolder();
-            ValidateReleaseNumber();
-            ValidateScriptTable();
-            ValidateEnvironment();
-            ValidateResetConnectionString();
-
-            // if we got this far without errors then we are ready to run scripts
-            _verified = true;
-
-            return this;
+            if (string.IsNullOrEmpty(_connectionString))
+            {
+                throw new MissingConnectionStringException(ExceptionMessages.MissingConnectionString);
+            }
         }
 
         private void ValidateEnvironment()
@@ -133,27 +131,6 @@ namespace SqlCi.ScriptRunner
             if (string.IsNullOrEmpty(_environment))
             {
                 throw new MissingEnvironmentException(ExceptionMessages.MissingEnvironment);
-            }
-        }
-
-        private void ValidateScriptsFolder()
-        {
-            if (string.IsNullOrEmpty(_scriptsFolder))
-            {
-                throw new MissingScriptsFolderException(ExceptionMessages.MissingScriptsFolder);
-            }
-
-            if (!Directory.Exists(_scriptsFolder))
-            {
-                throw new ScriptsFolderDoesNotExistException(ExceptionMessages.ScriptsFolderDoesNotExist);
-            }
-        }
-
-        private void ValidateConnectionString()
-        {
-            if (string.IsNullOrEmpty(_connectionString))
-            {
-                throw new MissingConnectionStringException(ExceptionMessages.MissingConnectionString);
             }
         }
 
@@ -165,11 +142,11 @@ namespace SqlCi.ScriptRunner
             }
         }
 
-        private void ValidateScriptTable()
+        private void ValidateResetConnectionString()
         {
-            if (string.IsNullOrEmpty(_scriptTable))
+            if (_resetDatabase && string.IsNullOrEmpty(_resetConnectionString))
             {
-                throw new MissingScriptTableException(ExceptionMessages.MissingScriptTable);
+                throw new MissingConnectionStringException(ExceptionMessages.MissingResetConnectionString);
             }
         }
 
@@ -186,11 +163,24 @@ namespace SqlCi.ScriptRunner
             }
         }
 
-        private void ValidateResetConnectionString()
+        private void ValidateScriptsFolder()
         {
-            if (_resetDatabase && string.IsNullOrEmpty(_resetConnectionString))
+            if (string.IsNullOrEmpty(_scriptsFolder))
             {
-                throw new MissingConnectionStringException(ExceptionMessages.MissingResetConnectionString);
+                throw new MissingScriptsFolderException(ExceptionMessages.MissingScriptsFolder);
+            }
+
+            if (!Directory.Exists(_scriptsFolder))
+            {
+                throw new ScriptsFolderDoesNotExistException(ExceptionMessages.ScriptsFolderDoesNotExist);
+            }
+        }
+
+        private void ValidateScriptTable()
+        {
+            if (string.IsNullOrEmpty(_scriptTable))
+            {
+                throw new MissingScriptTableException(ExceptionMessages.MissingScriptTable);
             }
         }
     }
