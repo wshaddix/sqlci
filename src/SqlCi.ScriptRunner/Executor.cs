@@ -313,7 +313,7 @@ namespace SqlCi.ScriptRunner
         {
             // load the reset sql scripts
             UpdateStatus("Loading reset script(s) from {0} ...", _scriptConfiguration.ResetFolder);
-            var resetScripts = LoadSqlScriptFiles(_scriptConfiguration.ResetFolder, true);
+            var resetScripts = LoadSqlScriptFiles(_scriptConfiguration.ResetFolder);
             UpdateStatus("Loaded {0} reset script(s) from {1} ...", resetScripts.Count, _scriptConfiguration.ResetFolder);
 
             // if there are no scripts to run, just exit

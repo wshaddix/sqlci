@@ -1,4 +1,5 @@
 ﻿using Mono.Options;
+using Newtonsoft.Json.Linq;
 using SqlCi.ScriptRunner;
 using System;
 using System.Collections.Generic;
@@ -17,17 +18,9 @@ namespace SqlCi.Console
 
             var optionSet = new OptionSet()
                 {
-                    {"uc|useConfig", "Determines whether to get config values from the SqlCi.Console.exe.config file or the command line arguments", p => config.UseConfigFile = p != null},
-                    {"cs|connectionString=", "The connection string to use to access the database to run the scripts in", p => config.ConnectionString = p },
-                    {"st|scriptTable=", "The name of the script table", p => config.ScriptTable = p },
-                    {"rv|releaseVersion=", "The version of this release",  p => config.ReleaseNumber = p},
-                    {"sf|scriptsFolder=", "The folder that holds the sql scripts to be ran",  p => config.ScriptsFolder = p},
-                    {"ev|environment=", "The environment that the scripts are being ran in",  p => config.Environment = p},
-                    {"rd|resetDatabase", "Determines if the database should be reset", p => config.ResetDatabase = p != null},
-                    {"rf|resetScriptsFolder=", "The folder that holds the database reset scripts to be ran if resetDatabase is specified", p => config.ResetScriptsFolder = p},
-                    {"rc|resetConnectionString=", "The connection string to use to reset the database", p => config.ResetConnectionString = p},
+                    {"d|deploy", "deploy the database. Usage: d <environment>", p => config.Deploy = p != null},
                     {"h|help", "show this message and exit", p => config.ShowHelp = p != null},
-                    {"v|version", "show the version number", p => config.VersionNumber = p != null},
+                    {"v|version", "show the version number", p => config.ShowVersionNumber = p != null},
                     {"sh|showHistory", "show the history of scripts ran against the database", p => config.ShowHistory = p != null},
                     {"g|generateScript", "generates a new script file. Usage: g <environment> <script_name> <script_folder>", p => config.GenerateScript = p != null}
                 };
@@ -49,106 +42,47 @@ namespace SqlCi.Console
             return optionSet;
         }
 
-        private static ConfigurationValues GetConfigurationValues(ConfigurationValues config)
+        private static ConfigurationValues GetConfigurationValues(ConfigurationValues config, string environment, bool generateOnly)
         {
-            config.ConnectionString = GetConnectionString();
-            config.ScriptsFolder = GetScriptsFolder();
-            config.ResetDatabase = GetResetDatabase();
-            if (config.ResetDatabase)
+            // verify that the config file exists
+            if (!File.Exists("config.json"))
             {
-                config.ResetScriptsFolder = GetResetScriptsFolder();
-                config.ResetConnectionString = GetResetConnectionString();
+                throw new FileNotFoundException("Couldn't open config.json file. Make sure the file exists and then try again.");
             }
-            config.ReleaseNumber = GetReleaseNumber();
-            config.ScriptTable = GetScriptTable();
-            config.Environment = GetEnvironment();
+
+            // load the configuration file
+            dynamic configuration = JObject.Parse(File.ReadAllText("config.json"));
+
+            // verify that the target environment configuration exists
+            if (null == configuration[environment])
+            {
+                throw new ConfigurationErrorsException(string.Format("There are no values for the \"{0}\" environment in the config.json file.", environment));
+            }
+
+            // load the config values
+            if (!generateOnly)
+            {
+                config.ConnectionString = configuration[environment].connectionString.Value;
+                config.ResetDatabase = bool.Parse(configuration[environment].resetDatabase.Value);
+            }
+
+            config.ScriptsFolder = configuration.common.scriptsFolder.Value;
+            config.ResetScriptsFolder = configuration.common.resetScriptsFolder.Value;
+            config.ReleaseVersion = configuration.common.releaseVersion.Value;
+            config.ScriptTable = configuration.common.scriptTable.Value;
+            config.Environment = environment;
+
+            if (!generateOnly && config.ResetDatabase)
+            {
+                config.ResetConnectionString = configuration[environment].resetConnectionString.Value;
+            }
+
             return config;
-        }
-
-        private static string GetConnectionString()
-        {
-            var connectionStringSettings = ConfigurationManager.ConnectionStrings["Database"];
-
-            if (null == connectionStringSettings)
-            {
-                throw new ApplicationException("There is no connection string named 'Database' in the configuration file.");
-            }
-
-            // grab the connection string
-            string connectionString = connectionStringSettings.ConnectionString;
-
-            if (string.IsNullOrEmpty(connectionString))
-            {
-                System.Console.WriteLine("The connectionString attribute of the 'Database' connection string in the configuration file is empty");
-                return string.Empty;
-            }
-
-            return connectionString;
-        }
-
-        private static string GetEnvironment()
-        {
-            return ConfigurationManager.AppSettings["Environment"];
-        }
-
-        private static string GetReleaseNumber()
-        {
-            return ConfigurationManager.AppSettings["ReleaseVersion"];
-        }
-
-        private static string GetResetConnectionString()
-        {
-            var connectionStringSettings = ConfigurationManager.ConnectionStrings["ResetDatabase"];
-
-            if (null == connectionStringSettings)
-            {
-                throw new ApplicationException("There is no connection string named 'ResetDatabase' in the configuration file.");
-            }
-
-            // grab the connection string
-            string connectionString = connectionStringSettings.ConnectionString;
-
-            if (string.IsNullOrEmpty(connectionString))
-            {
-                System.Console.WriteLine("The connectionString attribute of the 'ResetDatabase' connection string in the configuration file is empty");
-                return string.Empty;
-            }
-
-            return connectionString;
-        }
-
-        private static bool GetResetDatabase()
-        {
-            bool resetDatabase;
-            bool.TryParse(ConfigurationManager.AppSettings["ResetDatabase"], out resetDatabase);
-            return resetDatabase;
-        }
-
-        private static string GetResetScriptsFolder()
-        {
-            return ConfigurationManager.AppSettings["ResetScriptsFolder"];
-        }
-
-        private static string GetScriptsFolder()
-        {
-            return ConfigurationManager.AppSettings["ScriptsFolder"];
-        }
-
-        private static string GetScriptTable()
-        {
-            return ConfigurationManager.AppSettings["ScriptTable"];
         }
 
         private static int Main(string[] args)
         {
-            // if the 1st arg is 'g' then the user just wants to generate a new sql script file
-            if (args.Length == 4 && args[0].StartsWith("g"))
-            {
-                var fileName = string.Format("{0}_{1}_{2}.sql", DateTime.Now.ToString("yyyyMMddHHmmssfff"), args[1], args[2]);
-                File.CreateText(string.Format(@"{0}\{1}", args[3], fileName));
-                return 0;
-            }
-
+            // parse the arguments
             ConfigurationValues config;
             var optionSet = DefineOptionSet(args, out config);
 
@@ -157,13 +91,15 @@ namespace SqlCi.Console
                 return -1;
             }
 
+            // if there are no arguments then show the help and exit
             if (config.ShowHelp || args.Length == 0)
             {
                 ShowHelp(optionSet);
                 return 0;
             }
 
-            if (config.VersionNumber)
+            // if the user wants the version number
+            if (config.ShowVersionNumber)
             {
                 ShowVersion();
                 return 0;
@@ -171,23 +107,25 @@ namespace SqlCi.Console
 
             try
             {
-                // grab the configuration values from the .config file if the user specified to
-                if (config.UseConfigFile)
+                // we need to read in the config.json file here because all other options requires
+                // that we know the config
+                GetConfigurationValues(config, args[1], config.GenerateScript);
+
+                // if the user wants to generate a script file
+                if (config.GenerateScript)
                 {
-                    GetConfigurationValues(config);
+                    var fileName = string.Format("{0}_{1}_{2}.sql", DateTime.Now.ToString("yyyyMMddHHmmssfff"), config.Environment, args[2]);
+                    File.CreateText(string.Format(@"{0}\{1}", config.ScriptsFolder, fileName));
+                    return 0;
                 }
 
                 // create a script configuration
                 var scriptConfiguration = new ScriptConfiguration()
-                    .WithConnectionString(config.ConnectionString)
-                    .WithScriptsFolder(config.ScriptsFolder)
-                    .WithResetDatabase(config.ResetDatabase)
-                    .WithResetFolder(config.ResetScriptsFolder)
-                    .WithReleaseNumber(config.ReleaseNumber)
-                    .WithScriptTable(config.ScriptTable)
-                    .WithEnvironment(config.Environment)
-                    .WithResetConnectionString(config.ResetConnectionString)
-                    .Verify();
+                 .WithConnectionString(config.ConnectionString)
+                 .WithScriptsFolder(config.ScriptsFolder).WithResetDatabase(config.ResetDatabase)
+                 .WithResetFolder(config.ResetScriptsFolder).WithReleaseNumber(config.ReleaseVersion)
+                 .WithScriptTable(config.ScriptTable).WithEnvironment(config.Environment)
+                 .WithResetConnectionString(config.ResetConnectionString).Verify();
 
                 var executor = new Executor();
 
@@ -197,24 +135,20 @@ namespace SqlCi.Console
                 if (config.ShowHistory)
                 {
                     var runHistory = executor.GetHistory(scriptConfiguration);
-                    ShowHistory(runHistory);
-                    return 0;
+                    ShowHistory(runHistory); return 0;
                 }
 
                 var executionResults = executor.Execute(scriptConfiguration);
 
                 // if we were successful return 0
-                if (executionResults.WasSuccessful)
-                {
-                    return 0;
-                }
+                if (executionResults.WasSuccessful) { return 0; }
 
                 // otherwise return -1 to signal an error
                 return -1;
             }
             catch (Exception ex)
             {
-                ShowConsoleError(ex.Message);
+                ShowConsoleError(ex.GetBaseException().Message);
                 return -1;
             }
         }
