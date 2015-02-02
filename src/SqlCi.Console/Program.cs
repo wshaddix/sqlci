@@ -3,6 +3,7 @@ using Newtonsoft.Json.Linq;
 using SqlCi.ScriptRunner;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -52,7 +53,11 @@ namespace SqlCi.Console
             // load the configuration file
             dynamic configuration = JObject.Parse(File.ReadAllText("config.json"));
 
-            // TODO: verify that the target environment configuration exists
+            // verify that the target environment configuration exists
+            if (null == configuration[environment])
+            {
+                throw new ConfigurationErrorsException(string.Format("There are no values for the \"{0}\" environment in the config.json file.", environment));
+            }
 
             // load the config values
             if (!generateOnly)
@@ -100,44 +105,52 @@ namespace SqlCi.Console
                 return 0;
             }
 
-            // we need to read in the config.json file here because all other options requires that
-            // we know the config
-            GetConfigurationValues(config, args[1], config.GenerateScript);
-
-            // if the user wants to generate a script file
-            if (config.GenerateScript)
+            try
             {
-                var fileName = string.Format("{0}_{1}_{2}.sql", DateTime.Now.ToString("yyyyMMddHHmmssfff"), config.Environment, args[2]);
-                File.CreateText(string.Format(@"{0}\{1}", config.ScriptsFolder, fileName));
-                return 0;
+                // we need to read in the config.json file here because all other options requires
+                // that we know the config
+                GetConfigurationValues(config, args[1], config.GenerateScript);
+
+                // if the user wants to generate a script file
+                if (config.GenerateScript)
+                {
+                    var fileName = string.Format("{0}_{1}_{2}.sql", DateTime.Now.ToString("yyyyMMddHHmmssfff"), config.Environment, args[2]);
+                    File.CreateText(string.Format(@"{0}\{1}", config.ScriptsFolder, fileName));
+                    return 0;
+                }
+
+                // create a script configuration
+                var scriptConfiguration = new ScriptConfiguration()
+                 .WithConnectionString(config.ConnectionString)
+                 .WithScriptsFolder(config.ScriptsFolder).WithResetDatabase(config.ResetDatabase)
+                 .WithResetFolder(config.ResetScriptsFolder).WithReleaseNumber(config.ReleaseVersion)
+                 .WithScriptTable(config.ScriptTable).WithEnvironment(config.Environment)
+                 .WithResetConnectionString(config.ResetConnectionString).Verify();
+
+                var executor = new Executor();
+
+                // write any status updates that the executor sends to the console
+                executor.StatusUpdate += (sender, @event) => System.Console.WriteLine(@event.Status);
+
+                if (config.ShowHistory)
+                {
+                    var runHistory = executor.GetHistory(scriptConfiguration);
+                    ShowHistory(runHistory); return 0;
+                }
+
+                var executionResults = executor.Execute(scriptConfiguration);
+
+                // if we were successful return 0
+                if (executionResults.WasSuccessful) { return 0; }
+
+                // otherwise return -1 to signal an error
+                return -1;
             }
-
-            // create a script configuration
-            var scriptConfiguration = new ScriptConfiguration()
-             .WithConnectionString(config.ConnectionString)
-             .WithScriptsFolder(config.ScriptsFolder).WithResetDatabase(config.ResetDatabase)
-             .WithResetFolder(config.ResetScriptsFolder).WithReleaseNumber(config.ReleaseVersion)
-             .WithScriptTable(config.ScriptTable).WithEnvironment(config.Environment)
-             .WithResetConnectionString(config.ResetConnectionString).Verify();
-
-            var executor = new Executor();
-
-            // write any status updates that the executor sends to the console
-            executor.StatusUpdate += (sender, @event) => System.Console.WriteLine(@event.Status);
-
-            if (config.ShowHistory)
+            catch (Exception ex)
             {
-                var runHistory = executor.GetHistory(scriptConfiguration);
-                ShowHistory(runHistory); return 0;
+                ShowConsoleError(ex.GetBaseException().Message);
+                return -1;
             }
-
-            var executionResults = executor.Execute(scriptConfiguration);
-
-            // if we were successful return 0
-            if (executionResults.WasSuccessful) { return 0; }
-
-            // otherwise return -1 to signal an error
-            return -1;
         }
 
         private static void ShowConsoleError(string msg)
