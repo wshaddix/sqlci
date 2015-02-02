@@ -42,7 +42,7 @@ namespace SqlCi.Console
             return optionSet;
         }
 
-        private static ConfigurationValues GetConfigurationValues(ConfigurationValues config, string environment, bool generateOnly)
+        private static void GetConfigurationValues(ConfigurationValues config, string environment, bool generateOnly)
         {
             // verify that the config file exists
             if (!File.Exists("config.json"))
@@ -76,8 +76,6 @@ namespace SqlCi.Console
             {
                 config.ResetConnectionString = configuration[environment].resetConnectionString.Value;
             }
-
-            return config;
         }
 
         private static int Main(string[] args)
@@ -198,7 +196,7 @@ namespace SqlCi.Console
         {
             var version = Assembly.GetEntryAssembly().GetName().Version;
 
-            System.Console.WriteLine(string.Format("SqlCi.Console: {0}", string.Concat(version.Major, ".", version.Minor, ".", version.Build)));
+            System.Console.WriteLine("SqlCi.Console: {0}", string.Concat(version.Major, ".", version.Minor, ".", version.Build));
         }
     }
 }
