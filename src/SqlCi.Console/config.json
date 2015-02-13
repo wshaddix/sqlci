@@ -7,7 +7,7 @@
     },
     "workstation": {
         "resetConnectionString": "server=(localdb)\\v11.0; database=master; integrated security=true;",
-        "connectionString": "server=(localdb)\\v11.0; database=RemoteDevJobs_Workstation; integrated security=true;",
+        "connectionString": "server=(localdb)\\v11.0; database=RemoteDevJobs_Workstation; user=wshaddix; password=testing;",
         "resetDatabase": "true"
     },
     "qa": {

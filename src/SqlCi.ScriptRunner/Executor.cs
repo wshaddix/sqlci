@@ -362,14 +362,23 @@ namespace SqlCi.ScriptRunner
 
         private void UpdateStatus(string format, params Object[] args)
         {
-            if (null == args || args.Length == 0)
+            var status = format;
+
+            if (null != args && args.Length > 0)
             {
-                OnRaiseStatusUpdateEvent(new StatusUpdateEvent(format));
+                status = string.Format(format, args);
             }
-            else
+
+            // We want to redact passwords from connection strings before raising the event so that
+            // they won't be logged anywhere
+            const string pattern = @"password\s?=(.+);";
+
+            if (Regex.IsMatch(status, pattern, RegexOptions.IgnoreCase))
             {
-                OnRaiseStatusUpdateEvent(new StatusUpdateEvent(string.Format(format, args)));
+                status = Regex.Replace(status, pattern, "password=xxxxxx;");
             }
+
+            OnRaiseStatusUpdateEvent(new StatusUpdateEvent(status));
         }
 
         private void VerifyConfiguration(ScriptConfiguration scriptConfiguration)

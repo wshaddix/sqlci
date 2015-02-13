@@ -53,8 +53,9 @@ namespace SqlCi.Console
             // load the configuration file
             dynamic configuration = JObject.Parse(File.ReadAllText("config.json"));
 
-            // verify that the target environment configuration exists
-            if (null == configuration[environment])
+            // verify that the target environment configuration exists. If the environment is "all"
+            // then ignore this because they are generating a script
+            if (null == configuration[environment] && !environment.ToLowerInvariant().Equals("all"))
             {
                 throw new ConfigurationErrorsException(string.Format("There are no values for the \"{0}\" environment in the config.json file.", environment));
             }
