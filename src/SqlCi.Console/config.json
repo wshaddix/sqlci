@@ -1,21 +1,24 @@
 ﻿{
-    "common": {
-        "scriptTable": "ScriptTable",
-        "releaseVersion": "1.0.0",
-        "resetScriptsFolder": ".\\Reset",
-        "scriptsFolder": ".\\Scripts"
+  "scriptTable": "ScriptTable",
+  "version": "1.0.0",
+  "resetScriptsFolder": ".\\Reset",
+  "scriptsFolder": ".\\Scripts",
+  "environments": [
+    {
+      "name": "local",
+      "resetConnectionString": "server=(localdb)\\v11.0; database=master; integrated security=true;",
+      "connectionString": "server=(localdb)\\v11.0; database=MyDatabase_Local; user=my_user; password=password1234;",
+      "resetDatabase": "true"
     },
-    "workstation": {
-        "resetConnectionString": "server=(localdb)\\v11.0; database=master; integrated security=true;",
-        "connectionString": "server=(localdb)\\v11.0; database=RemoteDevJobs_Workstation; user=wshaddix; password=testing;",
-        "resetDatabase": "true"
+    {
+      "name": "qa",
+      "connectionString": "server=(localdb)\\v11.0; database=MyDatabase_Qa; integrated security=true;",
+      "resetDatabase": "false"
     },
-    "qa": {
-        "connectionString": "server=(localdb)\\v11.0; database=RemoteDevJobs_Qa; integrated security=true;",
-        "resetDatabase": "false"
-    },
-    "production": {
-        "connectionString": "server=(localdb)\\v11.0; database=RemoteDevJobs_Production; integrated security=true;",
-        "resetDatabase": "false"
+    {
+      "name": "production",
+      "connectionString": "server=(localdb)\\v11.0; database=MyDatabase_Production; integrated security=true;",
+      "resetDatabase": "false"
     }
+  ]
 }

@@ -42,22 +42,15 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="EnvironmentConfiguration.cs" />
     <Compile Include="Constants\ExceptionMessages.cs" />
-    <Compile Include="EventPublisher.cs" />
+    <Compile Include="Events\StatusLevelEnum.cs" />
     <Compile Include="Events\StatusUpdateEvent.cs" />
-    <Compile Include="Exceptions\MissingEnvironmentException.cs" />
-    <Compile Include="Exceptions\NotVerifiedException.cs" />
-    <Compile Include="Exceptions\MissingScriptTableException.cs" />
-    <Compile Include="Exceptions\MissingReleaseNumberException.cs" />
-    <Compile Include="Exceptions\MissingResetFolderException.cs" />
-    <Compile Include="Exceptions\MissingScriptsFolderException.cs" />
-    <Compile Include="Exceptions\MissingConnectionStringException.cs" />
-    <Compile Include="Exceptions\ResetFolderDoesNotExistException.cs" />
-    <Compile Include="Exceptions\ScriptsFolderDoesNotExistException.cs" />
+    <Compile Include="Exceptions\ConfigurationException.cs" />
     <Compile Include="ExecutionResults.cs" />
     <Compile Include="Executor.cs" />
     <Compile Include="Script.cs" />
-    <Compile Include="ScriptConfiguration.cs" />
+    <Compile Include="Configuration.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

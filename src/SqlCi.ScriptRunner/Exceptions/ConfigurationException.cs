@@ -4,23 +4,23 @@ using System.Runtime.Serialization;
 namespace SqlCi.ScriptRunner.Exceptions
 {
     [Serializable]
-    public class NotVerifiedException : Exception
+    public class ConfigurationException : Exception
     {
-        public NotVerifiedException()
+        public ConfigurationException()
         {
         }
 
-        public NotVerifiedException(string message)
+        public ConfigurationException(string message)
             : base(message)
         {
         }
 
-        public NotVerifiedException(string message, Exception inner)
+        public ConfigurationException(string message, Exception inner)
             : base(message, inner)
         {
         }
 
-        protected NotVerifiedException(SerializationInfo info, StreamingContext context)
+        protected ConfigurationException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
         }

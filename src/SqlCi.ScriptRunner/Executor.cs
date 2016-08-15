@@ -1,6 +1,4 @@
-﻿using SqlCi.ScriptRunner.Constants;
-using SqlCi.ScriptRunner.Events;
-using SqlCi.ScriptRunner.Exceptions;
+﻿using SqlCi.ScriptRunner.Events;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -13,36 +11,38 @@ namespace SqlCi.ScriptRunner
 {
     public class Executor
     {
+        private Configuration _configuration;
         private string _database;
-        private ScriptConfiguration _scriptConfiguration;
+        private EnvironmentConfiguration _environmentConfiguration;
         private SqlConnection _sqlConnection;
 
         public event EventHandler<StatusUpdateEvent> StatusUpdate;
 
-        public ExecutionResults Execute(ScriptConfiguration scriptConfiguration)
+        public ExecutionResults Execute(Configuration configuration, string environment)
         {
-            VerifyConfiguration(scriptConfiguration);
+            // ensure the configuration is valid for the given environment
+            VerifyConfiguration(configuration, environment);
 
             // if we need to reset the database do that first
-            if (_scriptConfiguration.ResetDatabase)
+            if (_environmentConfiguration.ResetDatabase)
             {
-                UpdateStatus("Resetting the database ...");
+                LogInfo("Resetting the database ...");
                 Reset();
             }
 
             // deploy
-            UpdateStatus("Deploying version {0} to {1}", scriptConfiguration.ReleaseNumber, _scriptConfiguration.Environment);
+            LogInfo($"Deploying version {configuration.Version} to {_environmentConfiguration.Name}");
             var results = Deploy();
 
-            UpdateStatus("Deployment Complete.");
+            LogSuccess("Deployment Complete.");
 
             // return the results to our host
             return results;
         }
 
-        public IEnumerable<Script> GetHistory(ScriptConfiguration scriptConfiguration)
+        public IEnumerable<Script> GetHistory(Configuration configuration, string environment)
         {
-            VerifyConfiguration(scriptConfiguration);
+            VerifyConfiguration(configuration, environment);
 
             // ensure that the script table exists
             var tableExisted = EnsureScriptTableExists();
@@ -54,9 +54,9 @@ namespace SqlCi.ScriptRunner
                 return runHistory;
             }
 
-            UpdateStatus("Reading script run history ...");
+            LogInfo("Reading script run history ...");
 
-            var sqlText = string.Format("select Id, Script, Release, AppliedOnUtc from {0}", _scriptConfiguration.ScriptTable);
+            var sqlText = $"select Id, Script, Release, AppliedOnUtc from {_configuration.ScriptTable}";
 
             OpenSqlConnection();
 
@@ -79,16 +79,9 @@ namespace SqlCi.ScriptRunner
 
         protected virtual void OnRaiseStatusUpdateEvent(StatusUpdateEvent e)
         {
-            // Make a temporary copy of the event to avoid possibility of a race condition if the
-            // last subscriber unsubscribes immediately after the null check and before the event is raised.
-            EventHandler<StatusUpdateEvent> handler = StatusUpdate;
-
-            // Event will be null if there are no subscribers
-            if (handler != null)
-            {
-                // Use the () operator to raise the event.
-                handler(this, e);
-            }
+            // Make a temporary copy of the event to avoid possibility of a race condition if the last subscriber unsubscribes immediately after the
+            // null check and before the event is raised.
+            StatusUpdate?.Invoke(this, e);
         }
 
         private void AuditScriptRan(string sqlScriptFileName)
@@ -97,10 +90,7 @@ namespace SqlCi.ScriptRunner
 
             var id = ExtractIdFromFileName(sqlScriptFileName);
 
-            var sqlText = string.Format("insert into {0} (Id, Script, Release, AppliedOnUtc) values " +
-                                        "('{1}', '{2}', '{3}', '{4}')",
-                                        _scriptConfiguration.ScriptTable,
-                                        id, sqlScriptFileName, _scriptConfiguration.ReleaseNumber, DateTime.UtcNow);
+            var sqlText = $"insert into {_configuration.ScriptTable} (Id, Script, Release, AppliedOnUtc) values " + $"('{id}', '{sqlScriptFileName}', '{_configuration.Version}', '{DateTime.UtcNow}')";
 
             using (var cmd = _sqlConnection.CreateCommand())
             {
@@ -113,46 +103,46 @@ namespace SqlCi.ScriptRunner
         {
             if (_sqlConnection.State != ConnectionState.Closed)
             {
-                UpdateStatus("Closing connection to sql server ...");
+                LogInfo("Closing connection to sql server ...");
                 _sqlConnection.Close();
             }
         }
 
         private void CreateScriptTable()
         {
-            var sqlText = string.Format("create table {0} (Id nvarchar(50) not null constraint pk primary key clustered, Script nvarchar(255) not null, Release nvarchar(25) not null, AppliedOnUtc datetime not null)", _scriptConfiguration.ScriptTable);
+            var sqlText = $"create table {_configuration.ScriptTable} (Id nvarchar(50) not null constraint pk primary key clustered, Script nvarchar(255) not null, Release nvarchar(25) not null, AppliedOnUtc datetime not null)";
             OpenSqlConnection();
             using (var cmd = _sqlConnection.CreateCommand())
             {
                 cmd.CommandText = sqlText;
                 cmd.ExecuteNonQuery();
             }
-            UpdateStatus("Script tracking table was created ...");
+            LogSuccess("Script tracking table was created ...");
         }
 
         private ExecutionResults Deploy()
         {
             // load the sql scripts
-            UpdateStatus("Loading change script(s) from {0} ...", _scriptConfiguration.ScriptsFolder);
-            var allScriptFiles = LoadSqlScriptFiles(_scriptConfiguration.ScriptsFolder);
-            UpdateStatus("Loaded {0} change script(s) from {1} ...", allScriptFiles.Count, _scriptConfiguration.ScriptsFolder);
+            LogInfo($"Loading change script(s) from {_configuration.ScriptsFolder} ...");
+            var allScriptFiles = LoadSqlScriptFiles(_configuration.ScriptsFolder);
+            LogSuccess($"Loaded {allScriptFiles.Count} change script(s) from {_configuration.ScriptsFolder} ...");
 
             // if there are no scripts to run, just exit
             if (allScriptFiles.Count == 0)
             {
-                UpdateStatus("No change script(s) to execute.");
+                LogWarning("No change script(s) to execute.");
                 return new ExecutionResults(true);
             }
 
             // show which scripts were loaded
             foreach (var scriptFile in allScriptFiles)
             {
-                UpdateStatus("\t{0}", scriptFile);
+                LogInfo($"\t{scriptFile}");
             }
 
             try
             {
-                UpdateStatus("Checking for existance of script tracking table in the database ...");
+                LogInfo("Checking for existance of script tracking table in the database ...");
 
                 // ensure that the script table exists
                 var tableExisted = EnsureScriptTableExists();
@@ -161,37 +151,36 @@ namespace SqlCi.ScriptRunner
                 if (tableExisted)
                 {
                     // find out which scripts have already been ran
-                    UpdateStatus("Checking to see which change script(s) have already been applied ...");
+                    LogInfo("Checking to see which change script(s) have already been applied ...");
                     var ranScriptFiles = GetRanScripts();
-                    UpdateStatus("Found {0} change script(s) that have already been applied ...", ranScriptFiles.Count());
+                    LogInfo($"Found {ranScriptFiles.Count()} change script(s) that have already been applied ...");
 
                     // show which scripts were applied
                     foreach (var scriptFile in ranScriptFiles)
                     {
-                        UpdateStatus("\t{0}", scriptFile);
+                        LogInfo($"\t{scriptFile}");
                     }
 
                     // remove any scripts that have already ran
-                    UpdateStatus("Calculating which new change script(s) need to be applied ...");
+                    LogInfo("Calculating which new change script(s) need to be applied ...");
                     sqlScriptFiles = allScriptFiles.Except(ranScriptFiles).ToList();
-                    UpdateStatus("{0} new change script(s) need to be applied ...", sqlScriptFiles.Count);
+                    LogInfo($"{sqlScriptFiles.Count} new change script(s) need to be applied ...");
                 }
                 else
                 {
                     // if the script table didn't already exist then we need to run all of the sql scripts
                     sqlScriptFiles = allScriptFiles;
-                    UpdateStatus("{0} new script(s) need to be applied ...", sqlScriptFiles.Count);
+                    LogWarning($"{sqlScriptFiles.Count} new script(s) need to be applied ...");
                 }
 
                 // run the scripts
                 foreach (var sqlScriptFileName in sqlScriptFiles)
                 {
-                    UpdateStatus("\tApplying change script {0} ...", sqlScriptFileName);
-                    RunScriptFile(_scriptConfiguration.ScriptsFolder, sqlScriptFileName);
+                    LogInfo($"\tApplying change script {sqlScriptFileName} ...");
+                    RunScriptFile(_configuration.ScriptsFolder, sqlScriptFileName);
                     AuditScriptRan(sqlScriptFileName);
                 }
 
-                UpdateStatus("Deployment complete.");
                 return new ExecutionResults(true);
             }
             finally
@@ -202,7 +191,7 @@ namespace SqlCi.ScriptRunner
 
         private bool DoesScriptTableExist()
         {
-            var sqlText = string.Format("select 1 from information_schema.tables where table_name = '{0}'", _scriptConfiguration.ScriptTable);
+            var sqlText = $"select 1 from information_schema.tables where table_name = '{_configuration.ScriptTable}'";
             object result;
 
             OpenSqlConnection();
@@ -222,16 +211,15 @@ namespace SqlCi.ScriptRunner
 
             if (!exists)
             {
-                UpdateStatus("Script tracking table did not exist. Creating it now ...");
+                LogWarning("Script tracking table did not exist. Creating it now ...");
                 CreateScriptTable();
             }
             else
             {
-                UpdateStatus("Script tracking table already exists ...");
+                LogInfo("Script tracking table already exists ...");
             }
 
-            // return true if the table already existed so that the executor knows whether or not to
-            // query the table for scripts that have been ran already
+            // return true if the table already existed so that the executor knows whether or not to query the table for scripts that have been ran already
             return (exists);
         }
 
@@ -240,6 +228,11 @@ namespace SqlCi.ScriptRunner
             // get just the file name and not the full path
             var fileName = Path.GetFileName(sqlScriptFileName);
 
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                throw new ApplicationException($"The file {sqlScriptFileName} does not exist.");
+            }
+
             // take anything left of the first underscore
             var underscoreIndex = fileName.IndexOf('_');
             return fileName.Substring(0, underscoreIndex);
@@ -247,7 +240,7 @@ namespace SqlCi.ScriptRunner
 
         private List<string> GetRanScripts()
         {
-            var sqlText = string.Format("select script from {0} order by Id", _scriptConfiguration.ScriptTable);
+            var sqlText = $"select script from {_configuration.ScriptTable} order by Id";
             var ranScripts = new List<string>();
 
             OpenSqlConnection();
@@ -272,11 +265,35 @@ namespace SqlCi.ScriptRunner
         {
             // we want to load scripts that start with <sequence>_all_*.sql or <sequence>_<environment>_*.sql
             const string allRegex = @"[0-9]+_all_.*";
-            var envRegex = string.Format("[0-9]+_{0}_.*", _scriptConfiguration.Environment);
+            var envRegex = $"[0-9]+_{_environmentConfiguration.Name}_.*";
 
             var filesPaths = Directory.GetFiles(directory, "*.sql");
 
             return loadAll ? filesPaths.Select(Path.GetFileName).ToList() : filesPaths.Select(Path.GetFileName).Where(fn => Regex.IsMatch(fn, allRegex, RegexOptions.IgnoreCase) || Regex.IsMatch(fn, envRegex, RegexOptions.IgnoreCase)).ToList();
+        }
+
+        private void LogError(string msg)
+        {
+            var sanitizedMsg = RedactSecrets(msg);
+            OnRaiseStatusUpdateEvent(new StatusUpdateEvent(sanitizedMsg, StatusLevelEnum.Error));
+        }
+
+        private void LogInfo(string msg)
+        {
+            var sanitizedMsg = RedactSecrets(msg);
+            OnRaiseStatusUpdateEvent(new StatusUpdateEvent(sanitizedMsg, StatusLevelEnum.Info));
+        }
+
+        private void LogSuccess(string msg)
+        {
+            var sanitizedMsg = RedactSecrets(msg);
+            OnRaiseStatusUpdateEvent(new StatusUpdateEvent(sanitizedMsg, StatusLevelEnum.Success));
+        }
+
+        private void LogWarning(string msg)
+        {
+            var sanitizedMsg = RedactSecrets(msg);
+            OnRaiseStatusUpdateEvent(new StatusUpdateEvent(sanitizedMsg, StatusLevelEnum.Warning));
         }
 
         private void OpenSqlConnection(bool resettingDatabase = false)
@@ -290,14 +307,14 @@ namespace SqlCi.ScriptRunner
             {
                 if (resettingDatabase)
                 {
-                    UpdateStatus("Opening connection to sql server using connection string: {0} ...", _scriptConfiguration.ResetConnectionString);
-                    _sqlConnection.ConnectionString = _scriptConfiguration.ResetConnectionString;
+                    LogInfo($"Opening connection to sql server using connection string: {_environmentConfiguration.ResetConnectionString} ...");
+                    _sqlConnection.ConnectionString = _environmentConfiguration.ResetConnectionString;
                     _sqlConnection.Open();
                 }
                 else
                 {
-                    UpdateStatus("Opening connection to sql server using connection string: {0} ...", _scriptConfiguration.ConnectionString);
-                    _sqlConnection.ConnectionString = _scriptConfiguration.ConnectionString;
+                    LogInfo($"Opening connection to sql server using connection string: {_environmentConfiguration.ConnectionString} ...");
+                    _sqlConnection.ConnectionString = _environmentConfiguration.ConnectionString;
                     _sqlConnection.Open();
                     _database = _sqlConnection.Database;
                 }
@@ -309,35 +326,48 @@ namespace SqlCi.ScriptRunner
             }
         }
 
+        private string RedactSecrets(string msg)
+        {
+            // We want to redact passwords from connection strings before raising the event so that they won't be logged anywhere
+            const string pattern = @"password\s?=(.+);";
+
+            if (Regex.IsMatch(msg, pattern, RegexOptions.IgnoreCase))
+            {
+                return Regex.Replace(msg, pattern, "password=xxxxxx;");
+            }
+
+            return msg;
+        }
+
         private void Reset()
         {
             // load the reset sql scripts
-            UpdateStatus("Loading reset script(s) from {0} ...", _scriptConfiguration.ResetFolder);
-            var resetScripts = LoadSqlScriptFiles(_scriptConfiguration.ResetFolder);
-            UpdateStatus("Loaded {0} reset script(s) from {1} ...", resetScripts.Count, _scriptConfiguration.ResetFolder);
+            LogInfo($"Loading reset script(s) from {_configuration.ResetScriptsFolder} ...");
+            var resetScripts = LoadSqlScriptFiles(_configuration.ResetScriptsFolder);
+            LogInfo($"Loaded {resetScripts.Count} reset script(s) from {_configuration.ResetScriptsFolder} ...");
 
             // if there are no scripts to run, just exit
             if (resetScripts.Count == 0)
             {
-                UpdateStatus("No reset script(s) to execute.");
+                LogWarning("No reset script(s) to execute.");
                 return;
             }
 
             // show which scripts were loaded
             foreach (var scriptFile in resetScripts)
             {
-                UpdateStatus("\t{0}", scriptFile);
+                LogInfo($"\t{scriptFile}");
             }
 
             // run the scripts
-            UpdateStatus("Resetting Database ...");
+            LogWarning("Resetting Database ...");
             foreach (var sqlScriptFileName in resetScripts)
             {
-                UpdateStatus("\tApplying reset script {0} ...", sqlScriptFileName);
-                RunScriptFile(_scriptConfiguration.ResetFolder, sqlScriptFileName, true);
+                LogWarning($"\tApplying reset script {sqlScriptFileName} ...");
+                RunScriptFile(_configuration.ResetScriptsFolder, sqlScriptFileName, true);
             }
 
-            UpdateStatus("Database reset complete.");
+            LogSuccess("Database reset complete.");
 
             CloseSqlConnection();
         }
@@ -360,47 +390,23 @@ namespace SqlCi.ScriptRunner
             }
         }
 
-        private void UpdateStatus(string format, params Object[] args)
-        {
-            var status = format;
-
-            if (null != args && args.Length > 0)
-            {
-                status = string.Format(format, args);
-            }
-
-            // We want to redact passwords from connection strings before raising the event so that
-            // they won't be logged anywhere
-            const string pattern = @"password\s?=(.+);";
-
-            if (Regex.IsMatch(status, pattern, RegexOptions.IgnoreCase))
-            {
-                status = Regex.Replace(status, pattern, "password=xxxxxx;");
-            }
-
-            OnRaiseStatusUpdateEvent(new StatusUpdateEvent(status));
-        }
-
-        private void VerifyConfiguration(ScriptConfiguration scriptConfiguration)
+        private void VerifyConfiguration(Configuration configuration, string environment)
         {
             // let our host know we are about to verify the config
-            UpdateStatus("Verifying configuration ...");
+            LogInfo("Verifying configuration ...");
 
             // no config means we can't proceed
-            if (scriptConfiguration == null) throw new ArgumentNullException("scriptConfiguration");
+            if (configuration == null) throw new ArgumentNullException(nameof(configuration));
 
-            // make sure that the host called Verify() on the scriptConfiguration before we try to
-            // do any work
-            if (!scriptConfiguration.IsVerified)
-            {
-                throw new NotVerifiedException(ExceptionMessages.NotVerified);
-            }
+            // make sure that the host called Verify() on the environment before we try to do any work
+            var environmentConfig = configuration.Verify(environment);
 
             // let our host know configuration has been verified
-            UpdateStatus("Configuration verification complete.");
+            LogSuccess("Configuration verification complete.");
 
             // store the config so other instance methods can reference it later on
-            _scriptConfiguration = scriptConfiguration;
+            _configuration = configuration;
+            _environmentConfiguration = environmentConfig;
         }
     }
 }

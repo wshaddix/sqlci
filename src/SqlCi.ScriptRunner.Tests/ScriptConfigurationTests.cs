@@ -8,60 +8,11 @@ namespace SqlCi.ScriptRunner.Tests
         [Fact]
         public void MissingConnectionStringThrowsException()
         {
-            Assert.Throws<MissingConnectionStringException>(() =>
+            Assert.Throws<ConfigurationException>(() =>
                 {
-                    new ScriptConfiguration()
+                    new Configuration()
                         .Verify();
                 });
-        }
-
-        [Fact]
-        public void MissingScriptsFolderThrowsException()
-        {
-            Assert.Throws<MissingScriptsFolderException>(() =>
-            {
-                new ScriptConfiguration()
-                    .WithConnectionString("blah")
-                    .Verify();
-            });
-        }
-
-        [Fact]
-        public void MissingResetFolderThrowsException()
-        {
-            Assert.Throws<MissingResetFolderException>(() =>
-            {
-                new ScriptConfiguration()
-                    .WithConnectionString("blah")
-                    .WithScriptsFolder(".")
-                    .WithResetDatabase(true)
-                    .Verify();
-            });
-        }
-
-        [Fact]
-        public void MissingReleaseNumberThrowsException()
-        {
-            Assert.Throws<MissingReleaseNumberException>(() =>
-            {
-                new ScriptConfiguration()
-                    .WithConnectionString("blah")
-                    .WithScriptsFolder(".")
-                    .Verify();
-            });
-        }
-
-        [Fact]
-        public void MissingScriptTableThrowsException()
-        {
-            Assert.Throws<MissingScriptTableException>(() =>
-            {
-                new ScriptConfiguration()
-                    .WithConnectionString("blah")
-                    .WithScriptsFolder(".")
-                    .WithReleaseNumber("1.0")
-                    .Verify();
-            });
         }
 
         [Fact]
@@ -69,7 +20,7 @@ namespace SqlCi.ScriptRunner.Tests
         {
             Assert.Throws<MissingEnvironmentException>(() =>
             {
-                new ScriptConfiguration()
+                new Configuration()
                     .WithConnectionString("blah")
                     .WithScriptsFolder(".")
                     .WithReleaseNumber("1.0")
@@ -79,13 +30,49 @@ namespace SqlCi.ScriptRunner.Tests
         }
 
         [Fact]
-        public void NonExistantScriptFolderThrowsException()
+        public void MissingReleaseNumberThrowsException()
         {
-            Assert.Throws<ScriptsFolderDoesNotExistException>(() =>
+            Assert.Throws<MissingReleaseNumberException>(() =>
             {
-                new ScriptConfiguration()
+                new Configuration()
                     .WithConnectionString("blah")
-                    .WithScriptsFolder("blah")
+                    .WithScriptsFolder(".")
+                    .Verify();
+            });
+        }
+
+        [Fact]
+        public void MissingResetFolderThrowsException()
+        {
+            Assert.Throws<MissingResetFolderException>(() =>
+            {
+                new Configuration()
+                    .WithConnectionString("blah")
+                    .WithScriptsFolder(".")
+                    .WithResetDatabase(true)
+                    .Verify();
+            });
+        }
+
+        [Fact]
+        public void MissingScriptsFolderThrowsException()
+        {
+            Assert.Throws<MissingScriptsFolderException>(() =>
+            {
+                new Configuration()
+                    .WithConnectionString("blah")
+                    .Verify();
+            });
+        }
+
+        [Fact]
+        public void MissingScriptTableThrowsException()
+        {
+            Assert.Throws<MissingScriptTableException>(() =>
+            {
+                new Configuration()
+                    .WithConnectionString("blah")
+                    .WithScriptsFolder(".")
                     .WithReleaseNumber("1.0")
                     .Verify();
             });
@@ -96,13 +83,26 @@ namespace SqlCi.ScriptRunner.Tests
         {
             Assert.Throws<ResetFolderDoesNotExistException>(() =>
             {
-                new ScriptConfiguration()
+                new Configuration()
                     .WithConnectionString("blah")
                     .WithScriptsFolder(".")
                     .WithReleaseNumber("1.0")
                     .WithResetDatabase(true)
                     .WithResetFolder("blah")
                     .WithScriptTable("ScriptsTable")
+                    .Verify();
+            });
+        }
+
+        [Fact]
+        public void NonExistantScriptFolderThrowsException()
+        {
+            Assert.Throws<ScriptsFolderDoesNotExistException>(() =>
+            {
+                new Configuration()
+                    .WithConnectionString("blah")
+                    .WithScriptsFolder("blah")
+                    .WithReleaseNumber("1.0")
                     .Verify();
             });
         }

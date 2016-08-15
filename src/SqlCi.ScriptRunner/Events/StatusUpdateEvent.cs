@@ -4,11 +4,13 @@ namespace SqlCi.ScriptRunner.Events
 {
     public class StatusUpdateEvent : EventArgs
     {
-        public string Status { get; private set; }  
+        public StatusLevelEnum Level { get; set; }
+        public string Status { get; private set; }
 
-        public StatusUpdateEvent(string status)
+        public StatusUpdateEvent(string status, StatusLevelEnum level)
         {
             Status = status;
+            Level = level;
         }
     }
 }

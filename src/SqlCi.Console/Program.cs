@@ -1,28 +1,33 @@
 ﻿using Mono.Options;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using SqlCi.ScriptRunner;
+using SqlCi.ScriptRunner.Events;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using Configuration = SqlCi.ScriptRunner.Configuration;
 
 namespace SqlCi.Console
 {
     internal class Program
     {
-        private static OptionSet DefineOptionSet(string[] args, out ConfigurationValues configuration)
+        private static readonly string Version = Assembly.GetEntryAssembly().GetName().Version.ToString();
+        private static Configuration _configuration;
+
+        private static OptionSet DefineOptionSet(string[] args, out CommandLineOptions configuration)
         {
-            var config = new ConfigurationValues();
+            var config = new CommandLineOptions();
 
             var optionSet = new OptionSet()
                 {
-                    {"d|deploy", "deploy the database. Usage: d <environment>", p => config.Deploy = p != null},
-                    {"h|help", "show this message and exit", p => config.ShowHelp = p != null},
-                    {"v|version", "show the version number", p => config.ShowVersionNumber = p != null},
-                    {"sh|showHistory", "show the history of scripts ran against the database", p => config.ShowHistory = p != null},
-                    {"g|generateScript", "generates a new script file. Usage: g <environment> <script_name> <script_folder>", p => config.GenerateScript = p != null}
+                    {"i|init", "Initializes a new default config.json file and folders.\r\nUsage: -i <database>", p => config.Initialize = p != null},
+                    {"h|history", "Show the history of scripts ran.\r\nUsage: -h <environment>", p => config.ShowHistory = p != null},
+                    {"g|generate", "Generates a new script file.\r\nUsage: -g <environment> <script_name>", p => config.GenerateScript = p != null},
+                    {"d|deploy", "Deploy the database.\r\nUsage: -d <environment>", p => config.Deploy = p != null},
                 };
 
             try
@@ -42,7 +47,14 @@ namespace SqlCi.Console
             return optionSet;
         }
 
-        private static void GetConfigurationValues(ConfigurationValues config, string environment, bool generateOnly)
+        private static void GenerateScript(string environment, string scriptName)
+        {
+            var fileName = $"{DateTime.Now.ToString("yyyyMMddHHmmssfff")}_{environment}_{scriptName}.sql";
+            File.CreateText($@"{_configuration.ScriptsFolder}\{fileName}");
+            System.Diagnostics.Process.Start($@"{_configuration.ScriptsFolder}\{fileName}");
+        }
+
+        private static void GetConfigurationValues(CommandLineOptions config, string environment, bool generateOnly)
         {
             // verify that the config file exists
             if (!File.Exists("config.json"))
@@ -53,8 +65,7 @@ namespace SqlCi.Console
             // load the configuration file
             dynamic configuration = JObject.Parse(File.ReadAllText("config.json"));
 
-            // verify that the target environment configuration exists. If the environment is "all"
-            // then ignore this because they are generating a script
+            // verify that the target environment configuration exists. If the environment is "all" then ignore this because they are generating a script
             if (null == configuration[environment] && !environment.ToLowerInvariant().Equals("all"))
             {
                 throw new ConfigurationErrorsException(string.Format("There are no values for the \"{0}\" environment in the config.json file.", environment));
@@ -79,11 +90,71 @@ namespace SqlCi.Console
             }
         }
 
+        private static void Initialize()
+        {
+            // if there is already a config file we should just exit
+            if (File.Exists("config.json"))
+            {
+                throw new ApplicationException("config.json already exists.");
+            }
+
+            // create a configuration with defaults
+            var configuration = new Configuration
+            {
+                ScriptsFolder = ".\\Scripts",
+                ResetScriptsFolder = ".\\ResetScripts",
+                ScriptTable = "ScriptTable",
+                Version = "1.0.0",
+            };
+            configuration.Environments.Add(new EnvironmentConfiguration
+            {
+                Name = "local",
+                ResetDatabase = true
+            });
+
+            // create the config.json file
+            File.WriteAllText("config.json", JsonConvert.SerializeObject(configuration, Formatting.Indented));
+
+            ShowStatusUpdate(new StatusUpdateEvent("Created config.json", StatusLevelEnum.Success));
+
+            // ensure that the default Scripts folder exists
+            if (!Directory.Exists("Scripts"))
+            {
+                Directory.CreateDirectory("Scripts");
+                ShowStatusUpdate(new StatusUpdateEvent("Created Scripts directory", StatusLevelEnum.Success));
+            }
+
+            // ensure that hte default ResetScripts folder exists
+            if (!Directory.Exists("ResetScripts"))
+            {
+                Directory.CreateDirectory("ResetScripts");
+                ShowStatusUpdate(new StatusUpdateEvent("Created ResetScripts directory", StatusLevelEnum.Success));
+            }
+
+            // load up this default configuration
+            _configuration = configuration;
+
+            // create the first baseline script
+            GenerateScript("all", "baseline");
+            ShowStatusUpdate(new StatusUpdateEvent("Created baseline script in Scripts directory", StatusLevelEnum.Success));
+        }
+
+        private static void LoadAndVerifyConfig()
+        {
+            if (!File.Exists(@".\config.json"))
+            {
+                throw new ApplicationException("There is no config.json file. Run SqlCi.Console -i to get started.");
+            }
+
+            _configuration = JsonConvert.DeserializeObject<Configuration>(File.ReadAllText(@".\config.json"));
+            _configuration.Verify();
+        }
+
         private static int Main(string[] args)
         {
             // parse the arguments
-            ConfigurationValues config;
-            var optionSet = DefineOptionSet(args, out config);
+            CommandLineOptions commandLineOptions;
+            var optionSet = DefineOptionSet(args, out commandLineOptions);
 
             if (null == optionSet)
             {
@@ -91,53 +162,43 @@ namespace SqlCi.Console
             }
 
             // if there are no arguments then show the help and exit
-            if (config.ShowHelp || args.Length == 0)
+            if (args.Length == 0)
             {
                 ShowHelp(optionSet);
                 return 0;
             }
 
-            // if the user wants the version number
-            if (config.ShowVersionNumber)
-            {
-                ShowVersion();
-                return 0;
-            }
-
             try
             {
-                // we need to read in the config.json file here because all other options requires
-                // that we know the config
-                GetConfigurationValues(config, args[1], config.GenerateScript);
-
-                // if the user wants to generate a script file
-                if (config.GenerateScript)
+                // if we need to initialize
+                if (commandLineOptions.Initialize)
                 {
-                    var fileName = string.Format("{0}_{1}_{2}.sql", DateTime.Now.ToString("yyyyMMddHHmmssfff"), config.Environment, args[2]);
-                    File.CreateText(string.Format(@"{0}\{1}", config.ScriptsFolder, fileName));
+                    Initialize();
                     return 0;
                 }
 
-                // create a script configuration
-                var scriptConfiguration = new ScriptConfiguration()
-                 .WithConnectionString(config.ConnectionString)
-                 .WithScriptsFolder(config.ScriptsFolder).WithResetDatabase(config.ResetDatabase)
-                 .WithResetFolder(config.ResetScriptsFolder).WithReleaseNumber(config.ReleaseVersion)
-                 .WithScriptTable(config.ScriptTable).WithEnvironment(config.Environment)
-                 .WithResetConnectionString(config.ResetConnectionString).Verify();
+                // load the config.json file so we have our configuration. if it doesn't exist, tell the user to initialize it
+                LoadAndVerifyConfig();
+
+                // if the user wants to generate a script file
+                if (commandLineOptions.GenerateScript)
+                {
+                    GenerateScript(args[1], args[2]);
+                    return 0;
+                }
 
                 var executor = new Executor();
 
                 // write any status updates that the executor sends to the console
-                executor.StatusUpdate += (sender, @event) => System.Console.WriteLine(@event.Status);
+                executor.StatusUpdate += (sender, @event) => ShowStatusUpdate(@event);
 
-                if (config.ShowHistory)
+                if (commandLineOptions.ShowHistory)
                 {
-                    var runHistory = executor.GetHistory(scriptConfiguration);
+                    var runHistory = executor.GetHistory(_configuration, args[1]);
                     ShowHistory(runHistory); return 0;
                 }
 
-                var executionResults = executor.Execute(scriptConfiguration);
+                var executionResults = executor.Execute(_configuration, args[1]);
 
                 // if we were successful return 0
                 if (executionResults.WasSuccessful) { return 0; }
@@ -159,8 +220,8 @@ namespace SqlCi.Console
 
         private static void ShowHelp(OptionSet optionSet)
         {
+            System.Console.WriteLine($"Version: {Version}");
             System.Console.WriteLine("Usage: SqlCi.Console [OPTIONS]");
-            System.Console.WriteLine("Runs a set of sql scripts against the specified database.");
             System.Console.WriteLine();
             System.Console.WriteLine("Options:");
             optionSet.WriteOptionDescriptions(System.Console.Out);
@@ -193,11 +254,32 @@ namespace SqlCi.Console
             System.Console.WriteLine("Current Database Version: {0} ({1})", sortedList.Last().Release, sortedList.Last().AppliedOnUtc.ToLocalTime());
         }
 
-        private static void ShowVersion()
+        private static void ShowStatusUpdate(StatusUpdateEvent @event)
         {
-            var version = Assembly.GetEntryAssembly().GetName().Version;
+            switch (@event.Level)
+            {
+                case StatusLevelEnum.Info:
+                    System.Console.ForegroundColor = ConsoleColor.Gray;
+                    break;
 
-            System.Console.WriteLine("SqlCi.Console: {0}", string.Concat(version.Major, ".", version.Minor, ".", version.Build));
+                case StatusLevelEnum.Success:
+                    System.Console.ForegroundColor = ConsoleColor.Green;
+                    break;
+
+                case StatusLevelEnum.Warning:
+                    System.Console.ForegroundColor = ConsoleColor.Yellow;
+                    break;
+
+                case StatusLevelEnum.Error:
+                    System.Console.ForegroundColor = ConsoleColor.Red;
+                    break;
+
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+
+            System.Console.WriteLine(@event.Status);
+            System.Console.ForegroundColor = ConsoleColor.Gray;
         }
     }
 }

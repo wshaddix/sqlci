@@ -11,7 +11,7 @@ namespace SqlCi.ScriptRunner.Tests
         {
             Assert.Throws<NotVerifiedException>(() =>
             {
-                var config = new ScriptConfiguration();
+                var config = new Configuration();
                 var executor = new Executor();
                 executor.Execute(config);
             });
