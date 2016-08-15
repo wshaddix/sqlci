@@ -62,6 +62,7 @@ A typical `config.json` file looks like the following:
 # Usage
 
 ## Getting SqlCi
+You can download the latest release [here](https://github.com/wshaddix/sqlci/releases/latest)
 
 ## Getting Help
 Run `sqlci` with no options and it will show you the version and help information
