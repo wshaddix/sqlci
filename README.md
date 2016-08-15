@@ -44,10 +44,16 @@ A typical `config.json` file looks like the following:
 }
 ```
 **scriptTable** - The name of the table that should be used to store the scripts that have been ran. Defaults to "ScriptTable"
+
 **version** - The version of the release to associate with the current script deployment. Defaults to "1.0.0"
-**resetScriptsFolder** - The name of the folder that holds the scripts to reset (drop/create) the database. Defaults to "ResetScripts". This should be a relative path from the directory where SqlCi.exe is ran from.
+
+**resetScriptsFolder** - The name of the folder that holds the scripts to reset (drop/create) the database. Defaults to 
+"ResetScripts". This should be a relative path from the directory where SqlCi.exe is ran from.
+
 **scriptsFolder** - The name of the folder that holds the schema and data population scripts that should be ran against the database specified in the "Database" connection string setting. This should be a relative path from the directory where SqlCi.exe is ran from.
+
 **environments** - SqlCi supports an unlimited number of target environments that you can deploy to. Each environment contains the following properties:
+
 - **name** - The name of the environment (local, dev, qa, staging, production, etc)
 - **resetConnectionString** - The connection string to use when running scripts from the ResetScriptsFolder. This is typically different from your application's database.
 - **connectionString** - The connection string to use when running scripts
