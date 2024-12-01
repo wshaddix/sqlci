@@ -7,29 +7,42 @@ namespace SqlCi.Commands;
 
 public sealed class GenerateScriptCommand : Command<GenerateScriptCommand.Settings>
 {
-    public sealed class Settings : CommandSettings
-    {
-        [Description("Name of the script to generate")]
-        [CommandOption("-n|--name")]
-        public required string ScriptName { get; init; }
-        
-        [Description("Environment to run the script in. Leave blank to run in all environments")]
-        [CommandOption("-e|--env")]
-        public string? Environment { get; init; }
-    }
-
     public override int Execute(CommandContext context, Settings settings)
     {
         AnsiConsole.Status()
             .Spinner(Spinner.Known.Star)
             .Start("Generating Script...", ctx =>
             {
-                var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssffffff}_{settings.Environment ?? "all"}_{settings.ScriptName}.sql";
+                // figure out which environment we should generate the script for
+                var environment = settings.Environment?.ToLowerInvariant() ?? "all";
+
+                // extract the script name if provided
+                var scriptName = string.IsNullOrWhiteSpace(settings.ScriptName) ? string.Empty : $"_{settings.ScriptName}";
+
+                // ensure that we have a configuration file so that we can verify the environment
+                Configuration.Configuration.EnsureEnvironmentExists(environment);
+
+                // generate the filename of the script
+                var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssffffff}_{environment}{scriptName}.sql";
+
+                // generate the file path of the script
                 var filePath = $"{Path.Combine(Environment.CurrentDirectory, Globals.DeploymentDirectoryName, fileName)}";
-                
-                FileHelper.EnsureFileExists(fileName, filePath, () => string.Empty);
+
+                // write the script file to disk
+                FileHelper.EnsureFileExists(filePath, () => string.Empty);
             });
-           
+
         return 0;
+    }
+
+    public sealed class Settings : CommandSettings
+    {
+        [Description("Name of the script to generate")]
+        [CommandOption("-n|--name")]
+        public required string ScriptName { get; init; }
+
+        [Description("Environment to run the script in. Leave blank to run in all environments")]
+        [CommandOption("-e|--env")]
+        public string? Environment { get; init; }
     }
 }

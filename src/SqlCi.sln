@@ -8,6 +8,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionFolder", "SolutionFolder", "{EC75CBD7-2EE8-48D5-8785-B406077D14E6}"
 	ProjectSection(SolutionItems) = preProject
 		..\README.md = ..\README.md
+		..\.github\ISSUE_TEMPLATE\bug_report.md = ..\.github\ISSUE_TEMPLATE\bug_report.md
+		..\.github\ISSUE_TEMPLATE\feature_request.md = ..\.github\ISSUE_TEMPLATE\feature_request.md
+		..\.github\pull_request_template.md = ..\.github\pull_request_template.md
 	EndProjectSection
 EndProject
 Global

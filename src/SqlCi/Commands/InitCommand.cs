@@ -1,74 +1,87 @@
-using System.ComponentModel;
-using System.Text.Json;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using SqlCi.Helpers;
 
 namespace SqlCi.Commands;
 
-internal sealed class InitCommand : Command<InitCommand.Settings>
+public class InitCommand : Command
 {
-    public sealed class Settings : CommandSettings
+    public override int Execute(CommandContext context)
     {
-        [Description("Directory where initial folder structure will be created")]
-        [CommandOption("-d|--directory")]
-        public string? Directory { get; init; }
-    }
+        var workingDirectory = Environment.CurrentDirectory;
 
-    public override int Execute(CommandContext context, Settings settings)
-    {
-        var workingDirectory = settings.Directory ?? Environment.CurrentDirectory;
-        AnsiConsole.MarkupLine($"Working Directory :open_file_folder:: {workingDirectory}");
-        
+        // If the config file exists prompt the user and quit
+        if(Configuration.Configuration.Exists())
+        {
+            AnsiConsole.MarkupLine($"[red]Config file already exists. Quitting...[/]");
+            return 1 ;
+        };
+
+        var environments = new List<string>();
+
+        var projectName = AnsiConsole.Ask<string>("What's the name of your project?");
+
+        var dbType = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("What type of database are you using?")
+                .AddChoices("AmazonAurora", "MSSqlServer", "MariaDB", "MySQL ", "Oracle", "PostgreSQL", "SQLite"));
+
+        var projectDir = Path.Combine(workingDirectory, $"{StringHelper.ToSafeFileName(projectName).Replace(" ", "_")}.{dbType.ToLowerInvariant()}");
+
+        var acceptEnvironmentDefaults = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Would you like to create the default environments for this project (workstation, dev, qa, prod)?")
+                .AddChoices("yes", "no"));
+
+        if (acceptEnvironmentDefaults.ToLowerInvariant() == "no")
+        {
+            var specifiedEnvironments = AnsiConsole.Ask<string>("Enter a comma separated list of environments for your project");
+            environments = specifiedEnvironments.Split(",").ToList();
+        }
+        else
+        {
+            environments.Add("workstation");
+            environments.Add("dev");
+            environments.Add("qa");
+            environments.Add("prod");
+        }
+
+        AnsiConsole.WriteLine($"Creating the {projectName} project in {projectDir} using {dbType} database with the environments of {string.Join(", ", environments)}");
+
         AnsiConsole.Status()
             .Spinner(Spinner.Known.Star)
-            .Start("Initializing...", ctx => {
-                
-                var resetDir = Path.Combine(workingDirectory, Globals.ResetDirectoryName);
-                var beforeDeploymentDir = Path.Combine(workingDirectory, Globals.BeforeDeploymentDirectoryName);
-                var deploymentDir = Path.Combine(workingDirectory, Globals.DeploymentDirectoryName);
-                var afterDeploymentDir = Path.Combine(workingDirectory, Globals.AfterDeploymentDirectoryName);
-                var configFilePath = Path.Combine(workingDirectory, Globals.ConfigFileName);
-                
+            .Start("Initializing...", _ =>
+            {
+                var resetDir = Path.Combine(projectDir, Globals.ResetDirectoryName);
+                var beforeDeploymentDir = Path.Combine(projectDir, Globals.BeforeDeploymentDirectoryName);
+                var deploymentDir = Path.Combine(projectDir, Globals.DeploymentDirectoryName);
+                var afterDeploymentDir = Path.Combine(projectDir, Globals.AfterDeploymentDirectoryName);
+                var configFileName = $"{StringHelper.ToSafeFileName(projectName).Replace(" ", "_")}.json";
+                var configFilePath = Path.Combine(projectDir, configFileName);
+
                 // create the reset directory
-                Thread.Sleep(1000);
                 DirectoryHelper.EnsureDirectoryExists(Globals.ResetDirectoryName, resetDir);
-                
+
                 // create the before deployment directory
-                Thread.Sleep(1000);
                 DirectoryHelper.EnsureDirectoryExists(Globals.BeforeDeploymentDirectoryName, beforeDeploymentDir);
-                
+
                 // create the deployment directory
-                Thread.Sleep(1000);
                 DirectoryHelper.EnsureDirectoryExists(Globals.DeploymentDirectoryName, deploymentDir);
-                
+
                 // create the after deployment directory
-                Thread.Sleep(1000);
                 DirectoryHelper.EnsureDirectoryExists(Globals.AfterDeploymentDirectoryName, afterDeploymentDir);
-                
+
                 // create the config file
-                Thread.Sleep(1000);
-                FileHelper.EnsureFileExists(Globals.ConfigFileName, configFilePath, () =>
-                {
-                    var config = new Configuration
-                    {
-                        Version = "0.0.1",
-                        ScriptTable = "SqlCi",
-                        Environments =
-                        [
-                            new DbEnvironment { Name = "Workstation", ResetDatabase = true },
-                            new DbEnvironment { Name = "Development", ResetDatabase = false }
-                        ]
-                    };
-        
-                    var jsonSerializerOptions = new JsonSerializerOptions
-                    {
-                        WriteIndented = true
-                    };
-                    
-                    return JsonSerializer.Serialize(config, jsonSerializerOptions);
-                });
+                FileHelper.EnsureFileExists(configFilePath, Configuration.Configuration.Initialize);
+
             });
+
+        // generate the first script file
+        var cmd = new GenerateScriptCommand();
+        cmd.Execute(context, new GenerateScriptCommand.Settings
+        {
+            ScriptName = "init"
+        });
 
         return 0;
     }

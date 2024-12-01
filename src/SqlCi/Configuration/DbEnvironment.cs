@@ -1,4 +1,4 @@
-namespace SqlCi;
+namespace SqlCi.Configuration;
 
 public sealed class DbEnvironment
 {
