@@ -1,39 +1,36 @@
-User Initializes SqlCi
+## User Initializes SqlCi
 
-| Name                                               |      |
-| -------------------------------------------------- | ---- |
-| **Created On**                                     |      |
-| **Tracking Link**                                  |      |
-| **Description**                                    |      |
-| **Goal**                                           |      |
-| **Preconditions**                                  |      |
-| **Assumptions**                                    |      |
-| **Frequency**                                      |      |
-| **Triggers**                                       |      |
-| **Feature Toggles**                                |      |
-| **Logging**                                        |      |
-| **Metrics**                                        |      |
-| **Traces**                                         |      |
-| **Events**                                         |      |
-| **Authentication Requirements**                    |      |
-| **Authorization Requirements**                     |      |
-| **Post Conditions**                                |      |
-| **Notes**                                          |      |
-| **3rd Party Dependencies / Platforms / Libraries** |      |
-| **How to do Automated Testing**                    |      |
-| **How to Demo**                                    |      |
-| **Unknowns**                                       |      |
+| Name                                               | Init                                                         |
+| -------------------------------------------------- | ------------------------------------------------------------ |
+| **Created On**                                     | Dec-01-2024                                                  |
+| **Tracking Link**                                  |                                                              |
+| **Description**                                    | The first time the user executes SqlCi it should initialize itself in the current folder that it was ran from. It should prompt the user for information about the project, the type of database(s) related to the project and the various environments of each database. Once the inputs have been collected it should build out the file and folder structure on disk along with the various config files needed to manage the project |
+| **Goal**                                           | Initialize the file system with a new project that is ready to use |
+| **Preconditions**                                  | The User has downloaded the latest version of SqlCi and ensured that it is executable on their OS (Windows, Linux, MacOS) |
+| **Assumptions**                                    | The User runs the SqlCi program from the folder that they want to be the root of their project |
+| **Frequency**                                      | Once per project                                             |
+| **Triggers**                                       | The User runs `sqlci init` from the CLI                      |
+| **Feature Toggles**                                | None                                                         |
+| **Logging**                                        | We should let the user know of each step that we are performing and the outcome of our pre and post condition checks |
+| **Metrics**                                        | N/A                                                          |
+| **Traces**                                         | N/A                                                          |
+| **Events**                                         | N/A                                                          |
+| **Authentication Requirements**                    | None                                                         |
+| **Authorization Requirements**                     | None                                                         |
+| **Post Conditions**                                | There should be a `project.json` file created and populated with each database in the project along with a folder for each database/type combination.<br />Inside each database/type folder there should be a `database.json` file created that includes each environment and related information with the following directories:<br />0_Reset<br />1_BeforeDeployment<br />2_Deployment<br />3_AfterDeployment |
+|                                                    |                                                              |
+| **Notes**                                          |                                                              |
+| **3rd Party Dependencies / Platforms / Libraries** |                                                              |
+| **How to do Automated Testing**                    |                                                              |
+| **How to Demo**                                    |                                                              |
+| **Unknowns**                                       |                                                              |
 
 ## Happy Path
-
-
 
 ## Alternate Paths
 
 ### Scenario #1 - <Some Bad Path>
 ### Scenario #2 - <Some Other Bad Path>
-
-
 
 ## UI Diagrams
 
@@ -45,11 +42,7 @@ User Initializes SqlCi
 
 ### CLI
 
-
-
 ## Activity Diagram
-
-
 
 ## General Development Checklist
 
@@ -92,7 +85,5 @@ User Initializes SqlCi
 - [ ] Are publicly accessible forms protected by CAPTCHA to prevent bot submissions?
 
 ## Mobile UI Development Checklist
-
-
 
 ## CLI Development Checklist

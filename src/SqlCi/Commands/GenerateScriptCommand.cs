@@ -20,7 +20,7 @@ public sealed class GenerateScriptCommand : Command<GenerateScriptCommand.Settin
                 var scriptName = string.IsNullOrWhiteSpace(settings.ScriptName) ? string.Empty : $"_{settings.ScriptName}";
 
                 // ensure that we have a configuration file so that we can verify the environment
-                Configuration.Configuration.EnsureEnvironmentExists(environment);
+                ProjectConfiguration.EnsureEnvironmentExists(environment);
 
                 // generate the filename of the script
                 var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssffffff}_{environment}{scriptName}.sql";
