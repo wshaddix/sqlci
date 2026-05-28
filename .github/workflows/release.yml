@@ -1,0 +1,149 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+      - '[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: write   # Required to create GitHub Releases and upload assets
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            ext: .exe
+            label: Windows x64
+          - rid: linux-x64
+            ext: ''
+            label: Linux x64
+          - rid: osx-x64
+            ext: ''
+            label: macOS x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          if [[ $VERSION == v* ]]; then
+            VERSION="${VERSION#v}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version for this release: $VERSION"
+
+      - name: Publish ${{ matrix.label }} (${{ matrix.rid }})
+        run: |
+          PROJECT="src/SqlCi.Cli/SqlCi.Cli.csproj"
+          OUT_DIR="release-artifacts/sqlci-${{ matrix.rid }}"
+          mkdir -p "$OUT_DIR"
+
+          dotnet publish "$PROJECT" \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            -o "$OUT_DIR" \
+            -p:PublishSingleFile=true \
+            -p:SelfContained=true \
+            -p:InvariantGlobalization=true \
+            -p:StripSymbols=true \
+            -p:PublishAot=false \
+            -p:PublishTrimmed=false \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:Version=${{ steps.version.outputs.version }} \
+            -p:InformationalVersion=${{ steps.version.outputs.version }}
+
+          EXE_NAME="sqlci${{ matrix.ext }}"
+          EXE_PATH="$OUT_DIR/$EXE_NAME"
+
+          if [ -f "$EXE_PATH" ]; then
+            # Clean up to leave ONLY the executable (matches publish-local.ps1 behavior)
+            find "$OUT_DIR" -mindepth 1 -not -path "$EXE_PATH" -delete 2>/dev/null || true
+
+            # Rename to versioned filename for clarity on the Releases page
+            FINAL_NAME="sqlci-${{ steps.version.outputs.version }}-${{ matrix.rid }}${{ matrix.ext }}"
+            mv "$EXE_PATH" "$OUT_DIR/$FINAL_NAME"
+            echo "Produced: $OUT_DIR/$FINAL_NAME"
+          else
+            echo "ERROR: Expected executable not found"
+            exit 1
+          fi
+
+      - name: Upload artifact for release job
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlci-${{ matrix.rid }}
+          path: release-artifacts/sqlci-${{ matrix.rid }}/
+          retention-days: 1
+
+  create-release:
+    needs: publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (for release notes context if needed)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Extract clean version
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          if [[ $VERSION == v* ]]; then VERSION="${VERSION#v}"; fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          pattern: sqlci-*
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd release-artifacts
+          find . -type f -name 'sqlci-*' -exec sha256sum {} + | sort > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create GitHub Release + attach assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          PRERELEASE_FLAG=""
+          if [[ "$TAG" == *-* ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          # Create the release (or update if it already exists from the tag)
+          gh release create "$TAG" \
+            --title "sqlci v${VERSION}" \
+            --generate-notes \
+            $PRERELEASE_FLAG \
+            release-artifacts/sqlci-${VERSION}-* \
+            release-artifacts/SHA256SUMS.txt \
+            2>&1 || true
+
+          # In case the release was created empty by the tag, upload explicitly
+          gh release upload "$TAG" \
+            release-artifacts/sqlci-${VERSION}-* \
+            release-artifacts/SHA256SUMS.txt \
+            --clobber || true
+
+          echo "Release created/updated: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"

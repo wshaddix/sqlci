@@ -1,0 +1,25 @@
+<Project>
+  <PropertyGroup>
+    <!-- .NET 10 + C# 14 baseline for the entire solution -->
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+
+    <!-- Quality -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <!-- Enable selectively in individual projects or via Directory.Build.targets if desired -->
+    <WarningsAsErrors>CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625</WarningsAsErrors>
+
+    <!-- Assembly metadata defaults (override per-project where needed) -->
+    <Company>Wes Shaddix</Company>
+    <Copyright>Copyright © Wes Shaddix 2013-2026</Copyright>
+    <Version>2.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Common analyzers for all projects (add more as we stabilize) -->
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" PrivateAssets="All" />
+  </ItemGroup>
+</Project>
