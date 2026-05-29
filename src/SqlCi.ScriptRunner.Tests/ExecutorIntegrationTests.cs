@@ -12,6 +12,7 @@ namespace SqlCi.ScriptRunner.Tests;
 /// End-to-end tests that drive <see cref="Executor"/> against a real (file-based) SQLite
 /// database. These require no Docker and exercise the full deploy + tracking + transaction flow.
 /// </summary>
+[NotInParallel]
 public class ExecutorIntegrationTests
 {
     private static (Configuration config, string scriptsFolder, string dbPath, string connectionString) CreateScenario()
@@ -23,7 +24,7 @@ public class ExecutorIntegrationTests
         Directory.CreateDirectory(resetFolder);
 
         var dbPath = Path.Combine(root, "test.db");
-        var connectionString = $"Data Source={dbPath}";
+        var connectionString = $"Data Source={dbPath};Pooling=False";
 
         var config = new Configuration
         {
