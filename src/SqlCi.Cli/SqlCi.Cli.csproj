@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>sqlci</AssemblyName>
+    <RootNamespace>SqlCi.Cli</RootNamespace>
+    <!-- TargetFramework, LangVersion, Nullable, etc. come from Directory.Build.props -->
+    <PackAsTool>false</PackAsTool>
+
+    <!-- 
+      Publishing settings are intentionally NOT set here as permanent defaults.
+
+      The publish script (publish-local.ps1) controls SingleFile + SelfContained +
+      IncludeNativeLibrariesForSelfExtract (important for SQLite) while deliberately
+      disabling AOT and trimming for reliability with Spectre.Console.Cli and the
+      various database providers.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" />
+    <PackageReference Include="Spectre.Console.Cli" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SqlCi.ScriptRunner\SqlCi.ScriptRunner.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -5,27 +5,22 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace SqlCi.ScriptRunner
+namespace SqlCi.ScriptRunner;
+
+public class Configuration
 {
-    public class Configuration
-    {
-        public List<EnvironmentConfiguration> Environments { get; set; }
-        public string ResetScriptsFolder { get; set; }
-        public string ScriptsFolder { get; set; }
-        public string ScriptTable { get; set; }
-        public string Version { get; set; }
+    public List<EnvironmentConfiguration> Environments { get; set; } = new();
+    public required string ResetScriptsFolder { get; set; }
+    public required string ScriptsFolder { get; set; }
+    public required string ScriptTable { get; set; }
+    public required string Version { get; set; }
 
-        public Configuration()
-        {
-            Environments = new List<EnvironmentConfiguration>();
-        }
-
-        public void Verify()
+    public void Verify()
         {
             var sb = new StringBuilder();
 
             // script table
-            if (string.IsNullOrEmpty(Version))
+            if (string.IsNullOrEmpty(ScriptTable))
             {
                 sb.AppendLine(ExceptionMessages.MissingScriptTable);
             }
@@ -88,5 +83,4 @@ namespace SqlCi.ScriptRunner
 
             return environmentConfig;
         }
-    }
 }

@@ -1,32 +1,50 @@
-﻿using System;
+﻿using SqlCi.ScriptRunner;
 using SqlCi.ScriptRunner.Exceptions;
-using Xunit;
+using TUnit.Assertions;
+using TUnit.Assertions.Extensions;
+using TUnit.Core;
 
-namespace SqlCi.ScriptRunner.Tests
+namespace SqlCi.ScriptRunner.Tests;
+
+public class ExecutorTests
 {
-    public class ExecutorTests
+    [Test]
+    public async Task ExecuteAsync_WithNullConfiguration_ThrowsArgumentNullException()
     {
-        [Fact]
-        public void NotVerifyingBeforeExecuringThrowsException()
-        {
-            Assert.Throws<NotVerifiedException>(() =>
-            {
-                var config = new Configuration();
-                var executor = new Executor();
-                executor.Execute(config);
-            });
-        } 
+        var executor = new Executor();
 
-        [Fact]
-        public void NullConfigurationThrowsAnExceptionOnExecute()
+        try
         {
-            var exception = Assert.Throws<ArgumentNullException>(() =>
-            {
-                var executor = new Executor();
-                executor.Execute(null);
-            });
+            await executor.ExecuteAsync(null!, "local");
+            Assert.Fail("Expected ArgumentNullException");
+        }
+        catch (ArgumentNullException ex)
+        {
+            await Assert.That(ex.ParamName).IsEqualTo("configuration");
+        }
+    }
 
-            Assert.True(exception.ParamName.Equals("scriptConfiguration"));
+    [Test]
+    public async Task ExecuteAsync_WithMissingEnvironment_ThrowsConfigurationException()
+    {
+        var config = new Configuration
+        {
+            ScriptTable = "ScriptTable",
+            Version = "1.0",
+            ScriptsFolder = ".",
+            ResetScriptsFolder = "."
+        };
+
+        var executor = new Executor();
+
+        try
+        {
+            await executor.ExecuteAsync(config, "");
+            Assert.Fail("Expected ConfigurationException");
+        }
+        catch (ConfigurationException)
+        {
+            // success
         }
     }
 }

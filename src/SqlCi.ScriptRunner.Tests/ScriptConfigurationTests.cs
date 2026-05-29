@@ -1,110 +1,122 @@
-﻿using SqlCi.ScriptRunner.Exceptions;
-using Xunit;
+﻿using SqlCi.ScriptRunner;
+using SqlCi.ScriptRunner.Exceptions;
+using System.IO;
+using TUnit.Assertions;
+using TUnit.Assertions.Extensions;
+using TUnit.Core;
 
-namespace SqlCi.ScriptRunner.Tests
+namespace SqlCi.ScriptRunner.Tests;
+
+public class ScriptConfigurationTests
 {
-    public class ScriptConfigurationTests
+    [Test]
+    public async Task Verify_WithMissingScriptTable_ThrowsConfigurationException()
     {
-        [Fact]
-        public void MissingConnectionStringThrowsException()
+        var config = new Configuration
         {
-            Assert.Throws<ConfigurationException>(() =>
-                {
-                    new Configuration()
-                        .Verify();
-                });
-        }
+            Version = "1.0",
+            ScriptsFolder = ".",
+            ResetScriptsFolder = ".",
+            ScriptTable = "" // missing
+        };
 
-        [Fact]
-        public void MissingEnvironmentThrowsException()
+        try
         {
-            Assert.Throws<MissingEnvironmentException>(() =>
-            {
-                new Configuration()
-                    .WithConnectionString("blah")
-                    .WithScriptsFolder(".")
-                    .WithReleaseNumber("1.0")
-                    .WithScriptTable("ScriptTable")
-                    .Verify();
-            });
+            config.Verify();
+            Assert.Fail("Expected ConfigurationException");
         }
-
-        [Fact]
-        public void MissingReleaseNumberThrowsException()
+        catch (ConfigurationException ex)
         {
-            Assert.Throws<MissingReleaseNumberException>(() =>
-            {
-                new Configuration()
-                    .WithConnectionString("blah")
-                    .WithScriptsFolder(".")
-                    .Verify();
-            });
+            await Assert.That(ex.Message).Contains("Script table cannot be blank");
         }
+    }
 
-        [Fact]
-        public void MissingResetFolderThrowsException()
+    [Test]
+    public async Task Verify_WithMissingVersion_ThrowsConfigurationException()
+    {
+        var config = new Configuration
         {
-            Assert.Throws<MissingResetFolderException>(() =>
-            {
-                new Configuration()
-                    .WithConnectionString("blah")
-                    .WithScriptsFolder(".")
-                    .WithResetDatabase(true)
-                    .Verify();
-            });
+            ScriptTable = "ScriptTable",
+            ScriptsFolder = ".",
+            ResetScriptsFolder = ".",
+            Version = "" // missing
+        };
+
+        try
+        {
+            config.Verify();
+            Assert.Fail("Expected ConfigurationException");
         }
-
-        [Fact]
-        public void MissingScriptsFolderThrowsException()
+        catch (ConfigurationException ex)
         {
-            Assert.Throws<MissingScriptsFolderException>(() =>
-            {
-                new Configuration()
-                    .WithConnectionString("blah")
-                    .Verify();
-            });
+            await Assert.That(ex.Message).Contains("Release number cannot be blank");
         }
+    }
 
-        [Fact]
-        public void MissingScriptTableThrowsException()
+    [Test]
+    public async Task Verify_WithNonExistentScriptsFolder_ThrowsConfigurationException()
+    {
+        var config = new Configuration
         {
-            Assert.Throws<MissingScriptTableException>(() =>
-            {
-                new Configuration()
-                    .WithConnectionString("blah")
-                    .WithScriptsFolder(".")
-                    .WithReleaseNumber("1.0")
-                    .Verify();
-            });
+            ScriptTable = "ScriptTable",
+            Version = "1.0",
+            ScriptsFolder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")),
+            ResetScriptsFolder = "."
+        };
+
+        try
+        {
+            config.Verify();
+            Assert.Fail("Expected ConfigurationException");
         }
-
-        [Fact]
-        public void NonExistantResetScriptFolderThrowsException()
+        catch (ConfigurationException ex)
         {
-            Assert.Throws<ResetFolderDoesNotExistException>(() =>
-            {
-                new Configuration()
-                    .WithConnectionString("blah")
-                    .WithScriptsFolder(".")
-                    .WithReleaseNumber("1.0")
-                    .WithResetDatabase(true)
-                    .WithResetFolder("blah")
-                    .WithScriptTable("ScriptsTable")
-                    .Verify();
-            });
+            await Assert.That(ex.Message).Contains("Scripts folder does not exist");
         }
+    }
 
-        [Fact]
-        public void NonExistantScriptFolderThrowsException()
+    [Test]
+    public async Task VerifyEnvironment_MissingEnvironmentName_ThrowsConfigurationException()
+    {
+        var config = new Configuration
         {
-            Assert.Throws<ScriptsFolderDoesNotExistException>(() =>
-            {
-                new Configuration()
-                    .WithConnectionString("blah")
-                    .WithScriptsFolder("blah")
-                    .WithReleaseNumber("1.0")
-                    .Verify();
-            });
+            ScriptTable = "ScriptTable",
+            Version = "1.0",
+            ScriptsFolder = ".",
+            ResetScriptsFolder = "."
+        };
+
+        try
+        {
+            config.Verify("");
+            Assert.Fail("Expected ConfigurationException");
+        }
+        catch (ConfigurationException ex)
+        {
+            await Assert.That(ex.Message).Contains("Environment cannot be blank");
+        }
+    }
+
+    [Test]
+    public async Task VerifyEnvironment_UnknownEnvironment_ThrowsConfigurationException()
+    {
+        var config = new Configuration
+        {
+            ScriptTable = "ScriptTable",
+            Version = "1.0",
+            ScriptsFolder = ".",
+            ResetScriptsFolder = ".",
+            Environments = [new EnvironmentConfiguration { Name = "local", ConnectionString = "server=." }]
+        };
+
+        try
+        {
+            config.Verify("production");
+            Assert.Fail("Expected ConfigurationException");
+        }
+        catch (ConfigurationException ex)
+        {
+            await Assert.That(ex.Message).Contains("does not exist in config.json");
         }
     }
 }

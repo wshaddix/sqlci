@@ -1,28 +1,5 @@
-﻿using System;
-using System.Runtime.Serialization;
+﻿namespace SqlCi.ScriptRunner.Exceptions;
 
-namespace SqlCi.ScriptRunner.Exceptions
+public class ConfigurationException(string? message = null, Exception? inner = null) : Exception(message, inner)
 {
-    [Serializable]
-    public class ConfigurationException : Exception
-    {
-        public ConfigurationException()
-        {
-        }
-
-        public ConfigurationException(string message)
-            : base(message)
-        {
-        }
-
-        public ConfigurationException(string message, Exception inner)
-            : base(message, inner)
-        {
-        }
-
-        protected ConfigurationException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
-        {
-        }
-    }
 }
