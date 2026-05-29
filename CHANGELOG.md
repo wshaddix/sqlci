@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-06-XX
+
+### Added
+- Interactive database provider selection when running `sqlci init`. When the `--provider` flag is omitted in an interactive terminal, SqlCi now shows a `SelectionPrompt` allowing users to choose between `Sqlite`, `SqlServer`, and `PostgreSql`.
+- New `CONTRIBUTING.md` with development setup, build/test commands, and contribution guidelines.
+
+### Changed
+- **Major documentation overhaul**: README completely rewritten with improved flow (Features → Installation with curl/wget instructions → Getting Started happy path → detailed reference sections later). Significantly better quick-start experience.
+- `sqlci init` now defaults to **Sqlite** with a working `Data Source=local.db;Cache=Shared` connection string (instead of a SQL Server LocalDB placeholder). Generated connection strings are now appropriate for the selected provider.
+- Legacy internal documentation in `docs/` was removed.
+
+### Removed
+- The entire legacy `src/SqlCi` project and old `.sln` solution file (part of ongoing modernization cleanup).
+
+### Fixed
+- `update-check --prerelease` flag behavior.
+
+[2.1.0]: https://github.com/wshaddix/sqlci/releases/tag/v2.1.0
+
 ## [2.0.0-beta.1] - 2026-06-XX
 
 ### Added
