@@ -94,10 +94,10 @@ The current implementation is a pragmatic modernization to **.NET 10 + C# 14**.
 
 ```powershell
 # Restore + build everything
-dotnet build src/SqlCi.sln -c Release
+dotnet build src/SqlCi.slnx -c Release
 
 # Run tests (TUnit)
-dotnet test src/SqlCi.sln -c Release
+dotnet test src/SqlCi.slnx -c Release
 
 # Run the CLI from source (during development)
 dotnet run --project src/SqlCi.Cli -- <command> [args]
@@ -106,29 +106,65 @@ dotnet run --project src/SqlCi.Cli -- <command> [args]
 dotnet publish src/SqlCi.Cli -c Release -r win-x64 --self-contained
 ```
 
-## Cutting a Release (Automated via Git Tags)
+## Cutting a Release (v2.1.0+ Process)
 
-Releases are fully automated. When you push a tag, GitHub Actions builds, tests, publishes the three platform binaries, creates the GitHub Release, attaches the executables + SHA256SUMS.txt, and generates release notes.
+Releases are **fully automated** via Git tags. Pushing an annotated tag with the `v` prefix triggers `.github/workflows/release.yml`, which runs the full test suite, builds the three platform binaries, creates the GitHub Release (using `gh release create --generate-notes`), and attaches the executables + `SHA256SUMS.txt`.
 
-1. Make sure `master` is green (`dotnet test src/SqlCi.sln -c Release`).
-2. Create an annotated tag (use `v` prefix):
+### Pre-Release Checklist (Critical for Quality)
+
+1. **Verify readiness**
+   - `master` is up to date and green:
+     ```powershell
+     dotnet build src/SqlCi.slnx -c Release
+     dotnet test src/SqlCi.slnx -c Release
+     ```
+
+2. **Update CHANGELOG.md (mandatory before tagging)**
+   - Replace the `## [Unreleased]` section with a proper `## [X.Y.Z] - YYYY-MM-DD` entry.
+   - Write a concise, human-readable summary at the top (this is the "marketing" text for the release).
+   - Use standard Keep a Changelog sections (`### Added`, `### Changed`, `### Fixed`, etc.).
+   - Add the release link at the bottom of the file.
+   - Commit the CHANGELOG update **before** creating the tag.
+
+3. **Create the annotated tag**
    ```bash
-   git tag -a v1.2.3 -m "Release 1.2.3 - one-line summary of notable changes"
-   git push origin v1.2.3
+   git tag -a v2.1.0 -m "Release 2.1.0 - short human summary"
+   git push origin v2.1.0
    ```
-3. Watch the Actions run (`Release` workflow). It will:
-   - Run the full test suite.
-   - Publish clean single-file self-contained executables for `win-x64`, `linux-x64`, and `osx-x64` (exact same settings as `publish-local.ps1`, including `IncludeNativeLibrariesForSelfExtract` and no AOT/trimming).
-   - Create a GitHub Release for the tag, attach versioned binaries (`sqlci-1.2.3-win-x64.exe` etc.) + checksums, and populate the release body with `--generate-notes` (a "What's Changed" list of commits/PRs).
-   - Prerelease tags (containing `-`, e.g. `v1.2.0-beta.1`) are automatically marked as prereleases.
-4. Once complete, the new version is immediately visible to `sqlci update-check` worldwide.
 
-See:
-- `.github/workflows/release.yml` for the full pipeline.
-- `publish-local.ps1` (lines 67-83 and cleanup logic) for the authoritative publish arguments and rationale.
-- `src/SqlCi.Cli/AppVersion.cs` (the dynamic version property that makes tag-driven releases work without editing source).
+4. **Monitor the workflow**
+   - Watch the **Release** workflow in GitHub Actions.
+   - The workflow automatically:
+     - Runs the full test suite
+     - Publishes `win-x64`, `linux-x64`, and `osx-x64` single-file binaries (see `publish-local.ps1` for exact flags)
+     - Creates the GitHub Release with `--generate-notes`
+     - Attaches versioned binaries + `SHA256SUMS.txt`
 
-**Tip**: For human-readable highlights on important releases, add a short entry to the top of `CHANGELOG.md` before tagging. The automated commit list from `--generate-notes` provides the detailed "what changed" view on the Releases page.
+5. **Polish the GitHub Release page (for accurate commit logs)**
+   - After the workflow completes, visit the new tag page.
+   - GitHub's auto-generated "What's Changed" list is often noisy or incomplete.
+   - **Edit the release** (pencil icon) and curate it:
+     - Put the nice human summary from `CHANGELOG.md` at the top.
+     - Clean up or reorganize the commit list so it is accurate and readable.
+     - Keep the full raw list only if it adds value.
+   - This step is how we guarantee high-quality, accurate release notes.
+
+### Key Principles
+
+- **Two deliverables matter most**:
+  1. A good `CHANGELOG.md` entry (human-friendly narrative).
+  2. A clean, accurate commit log on the GitHub Release page (achieved via post-creation editing).
+- Never edit version numbers in source code. Versioning is driven entirely by the annotated tag via `src/SqlCi.Cli/AppVersion.cs`.
+- Clean semver tags (e.g. `v2.1.0`) produce normal releases. Tags containing `-` (e.g. `v2.1.0-beta.1`) are automatically marked as pre-releases.
+
+### References
+
+- Full pipeline: [.github/workflows/release.yml](/github/workflows/release.yml)
+- Publish flags & rationale: [publish-local.ps1](/publish-local.ps1) (lines ~67-83)
+- Version handling: [src/SqlCi.Cli/AppVersion.cs](/src/SqlCi.Cli/AppVersion.cs)
+- Detailed release checklist used by agents: see the release plan in the session notes or the process above.
+
+**When asked to "prepare/generate a release"**, follow the Pre-Release Checklist above exactly, with special emphasis on a high-quality CHANGELOG entry and post-release curation of the GitHub release notes.
 
 ## Important Architectural Notes
 
@@ -143,7 +179,8 @@ Update `AGENTS.md` whenever:
 - A major package or technology is added, removed, or replaced
 - Significant architectural decisions are made (record links to ADRs if used)
 - New mandatory patterns emerge (e.g., "always use primary constructors for DTOs")
-- CI/CD workflows, release process, or release-related documentation (`release.yml`, `CHANGELOG.md`, etc.) change
+- The release process changes (update the "Cutting a Release" section and any related checklists)
+- CI/CD workflows, `CHANGELOG.md` format expectations, or release-related documentation change
 
 ---
 

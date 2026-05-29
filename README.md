@@ -1,264 +1,391 @@
-# Sql CI
+# SqlCi
 
-[![](http://i.imgur.com/g1WHerF.png)](http://www.ndepend.com)
+A fast, simple SQL migration tool for teams and CI/CD pipelines.
 
-A very simple sql script migration utility for continuous integration and automated deployments
+Deploy schema changes, reference data, and environment-specific scripts to **SQL Server**, **PostgreSQL**, or **SQLite** with a single command and a JSON config.
 
-# Features
-- Automate SQL Server database deployments via command line utility (currently uses Microsoft.Data.SqlClient)
-- Easily integrates with automated deployment solutions by using a JSON-based configuration file that supports an unlimited number of environments
-- Uses exit codes (0 = success, -1 = failure) so automation tools can detect the result
-- Optionally run drop/create database scripts (useful for developer workstations or test runs)
-- Support scripts that need to change multiple databases (e.g. a script that runs against your app DB and also creates a SQL Agent job in msdb)
-- Support running different scripts in different environments (e.g. data population scripts that differ between local/dev/qa/prod)
+## Features
 
-# Configuration
-All configuration is done through the config.json file. This format was chosen over command line arguments simply because Octopus Deploy has built in support for modifying the .config files with variables that are specific to each environment.
-
-## config.json
-A typical `config.json` file looks like the following:
-```json
-{
-  "scriptTable": "ScriptTable",
-  "version": "1.0.0",
-  "resetScriptsFolder": ".\\Reset",
-  "scriptsFolder": ".\\Scripts",
-  "environments": [
-    {
-      "name": "local",
-      "resetConnectionString": "server=(localdb)\\\\MSSQLLocalDB; database=master; integrated security=true;",
-      "connectionString": "server=(localdb)\\\\MSSQLLocalDB; database=MyDatabase_Local; integrated security=true;",
-      "resetDatabase": true
-    },
-    {
-      "name": "qa",
-      "connectionString": "server=(localdb)\\\\MSSQLLocalDB; database=MyDatabase_Qa; integrated security=true;",
-      "resetDatabase": false
-    },
-    {
-      "name": "production",
-      "connectionString": "Server=prod-sql;Database=MyDatabase_Production;User Id=appuser;Password=${env:PROD_DB_PASSWORD};",
-      "resetDatabase": false
-    }
-  ]
-}
-```
-**scriptTable** - The name of the table that should be used to store the scripts that have been ran. Defaults to "ScriptTable"
-
-**version** - The version of the release to associate with the current script deployment. Defaults to "1.0.0"
-
-**resetScriptsFolder** - The folder containing scripts used to reset (drop + recreate) the database. Defaults to `.\ResetScripts`. Relative to the current working directory when you run `sqlci`.
-
-**scriptsFolder** - The folder containing your schema and data change scripts. Defaults to `.\Scripts`. Relative to the current working directory.
-
-**environments** - SqlCi supports an unlimited number of target environments that you can deploy to. Each environment contains the following properties:
-
-- **name** - The name of the environment (local, dev, qa, staging, production, etc.)
-- **resetConnectionString** - The connection string to use when running scripts from the ResetScriptsFolder. This is typically different from your application's database.
-- **connectionString** - The connection string used when running change scripts against the target database.
-- **resetDatabase** - When `true`, the reset scripts (from `resetScriptsFolder`) will be executed against `resetConnectionString` before running the normal change scripts.
-- **dbProvider** - The database provider for this environment (`SqlServer`, `PostgreSql`, or `Sqlite`). Defaults to `SqlServer`.
-
-### Handling Secrets in Connection Strings
-
-Connection strings often contain passwords or other secrets. SqlCi supports two mechanisms to avoid storing secrets directly in `config.json`:
-
-#### 1. Environment Variable Substitution
-
-You can reference environment variables using the `${env:VAR_NAME}` syntax (or the shorter `${VAR_NAME}`):
-
-```json
-{
-  "environments": [
-    {
-      "name": "production",
-      "dbProvider": "SqlServer",
-      "connectionString": "Server=prod-sql;Database=MyApp;User Id=appuser;Password=${env:PROD_DB_PASSWORD};"
-    }
-  ]
-}
-```
-
-At runtime, `${env:PROD_DB_PASSWORD}` will be replaced with the value of the `PROD_DB_PASSWORD` environment variable.
-
-If the referenced environment variable is not set, SqlCi will throw a clear error during startup.
-
-#### 2. Full Connection String Override
-
-For even stronger secret isolation (especially useful in CI/CD), you can completely override a connection string using an environment variable:
-
-- `SQLCI_<ENVIRONMENT>_CONNECTION` — overrides the main `connectionString`
-- `SQLCI_<ENVIRONMENT>_RESET_CONNECTION` — overrides the `resetConnectionString`
-
-Example:
-```powershell
-# In your CI pipeline or local environment
-$env:SQLCI_PRODUCTION_CONNECTION = "Server=prod-sql;Database=MyApp;User Id=appuser;Password=...;"
-```
-
-When this variable is present, it completely replaces whatever is written in `config.json` for that environment.
-
-This pattern works very well with secret managers (Azure Key Vault, AWS Secrets Manager, GitHub Secrets, 1Password CLI, Doppler, etc.).
-
-# Usage
+- **Single-file, cross-platform binaries** — download one executable for Windows, Linux, or macOS. No runtime or installer required.
+- **Three database providers** — Sqlite (default at `init`), PostgreSQL, and SQL Server. Choose interactively, via `--provider`, or per environment in `config.json`.
+- **Environment-aware scripts** — name scripts with `_all_` (runs everywhere) or `_local_`, `_qa_`, `_prod_`, etc. (runs only for that environment).
+- **Idempotent deployments** — tracks every applied script in a simple audit table. Re-running the same deployment is safe.
+- **Optional reset (drop/recreate)** — per-environment flag that runs scripts from a separate `ResetScripts` folder before the normal migration. Perfect for dev workstations and test environments.
+- **Secret hygiene built-in** — reference environment variables with `${VAR_NAME}` or override entire connection strings via `SQLCI_PROD_CONNECTION` for CI/CD secret managers.
+- **CI/CD friendly** — clean exit codes (0 = success, -1 = failure), no interactive prompts, JSON config that plays nicely with variable substitution.
+- **Self-updating** — `sqlci update-check` tells you when a new version is available with a direct download link.
 
 ## Installation
 
-### From GitHub Releases (recommended)
+### 1. Download the latest release (recommended)
 
-The easiest way for most users is to download a pre-built, single-file executable from the [latest release](https://github.com/wshaddix/sqlci/releases/latest).
+Go to the [latest release page](https://github.com/wshaddix/sqlci/releases/latest).
 
-1. Download the binary for your platform:
-   - `sqlci-<version>-win-x64.exe` (Windows)
-   - `sqlci-<version>-linux-x64` (Linux x64)
-   - `sqlci-<version>-osx-x64` (macOS x64)
-2. On macOS/Linux: `chmod +x sqlci-<version>-*`
-3. (Optional) Rename it to `sqlci` (or `sqlci.exe`) and place it on your `PATH`.
+Download the file that matches your platform:
 
-Verify the installation:
+| Platform     | File name example                     | After download |
+|--------------|---------------------------------------|----------------|
+| Windows x64  | `sqlci-2.0.0-win-x64.exe`             | Rename to `sqlci.exe` (optional) and add to PATH |
+| Linux x64    | `sqlci-2.0.0-linux-x64`               | `chmod +x`, rename to `sqlci`, add to PATH |
+| macOS x64    | `sqlci-2.0.0-osx-x64`                 | `chmod +x`, rename to `sqlci`, add to PATH |
+
+Each release also includes `SHA256SUMS.txt` for verification.
+
+### 2. One-liner downloads (advanced)
+
+**Linux / macOS (using GitHub API + jq):**
+
+```bash
+# Download the correct asset for your platform
+curl -sL https://api.github.com/repos/wshaddix/sqlci/releases/latest \
+  | jq -r '.assets[] | select(.name | endswith("-linux-x64")) | .browser_download_url' \
+  | xargs curl -L -o sqlci
+
+chmod +x sqlci
+sudo mv sqlci /usr/local/bin/
+```
+
+Replace `-linux-x64` with `-osx-x64` for macOS. On Windows use PowerShell + `Invoke-RestMethod` or just download manually from the releases page.
+
+**Even easier if you have the GitHub CLI installed:**
+
+```bash
+gh release download --latest --pattern "*-linux-x64" --output sqlci
+chmod +x sqlci
+```
+
+### 3. Verify the install
+
 ```powershell
 sqlci --version
 sqlci update-check
 ```
 
-Each release also includes `SHA256SUMS.txt` for verification and automatically generated release notes (a "What's Changed" list of commits and PRs since the previous tag).
-
-### Other options
-
-- **Run from source** (during development or when you want the absolute latest):
-  ```powershell
-  dotnet run --project src/SqlCi.Cli -- <command> [arguments]
-  ```
-
-- **Build your own binary** (see the publish script for the exact flags used in official releases):
-  ```powershell
-  dotnet publish src/SqlCi.Cli -c Release -r win-x64 --self-contained -o ./publish
-  ./publish/sqlci.exe --help
-  ```
-
-- **As a .NET tool** (future): Packaging as a `dotnet tool` is possible but not yet set up.
-
-## Getting Help
-Run `sqlci --help`:
-
-```
-λ sqlci --help
-USAGE:
-    sqlci [OPTIONS] <COMMAND>
-
-OPTIONS:
-    -h, --help       Prints help information
-    -v, --version    Prints version information
-
-COMMANDS:
-    init                                    Initializes a new default config.json file and folders
-    deploy <ENVIRONMENT>                    Deploy the database to the specified environment
-    history <ENVIRONMENT>                   Show the history of scripts ran against an environment
-    generate <ENVIRONMENT> <SCRIPT_NAME>    Generates a new script file
-    update-check                            Check if a newer version of sqlci is available
-```
-
-> **Note:** The command-line interface was modernized in 2026 (subcommands instead of the old `-i` / `-d` / `-g` / `-h` flags). Older documentation and examples may still show the legacy syntax.
-
 ## Getting Started
-To start a new project run `sqlci init`:
+
+The fastest way to see SqlCi in action is to initialize a project, generate a script, and deploy it.
+
+### 1. Initialize a new project
+
+```powershell
+sqlci init
 ```
-λ sqlci init
+
+Expected output:
+
+```
+Initializing new SqlCi project...
 ✓ Created config.json
 ✓ Created Scripts directory
 ✓ Created ResetScripts directory
-✓ Created baseline script: 20260528150239506_all_baseline.sql
+✓ Created baseline script: 20250615143022123_all_baseline.sql
 
 Initialization complete. Edit the baseline script and config.json to get started.
 ```
 
-You can also specify the database provider upfront:
-```
-λ sqlci init --provider PostgreSql
-```
+This creates:
+- `config.json` with a single `local` environment
+- `Scripts/` folder with a baseline script
+- `ResetScripts/` folder (empty)
 
-This will create a new `config.json` file with sensible defaults (using the chosen provider). It will also create a `Scripts` folder and a `ResetScripts` folder. Within the `Scripts` folder it generates a baseline SQL script and attempts to open it in your default `.sql` editor.
+When you run `sqlci init` without the `--provider` flag in a normal terminal, SqlCi will interactively ask which database provider to use. The default (when run non-interactively or via scripts) is now **Sqlite** with a ready-to-use `local.db` file.
 
-### Supported Providers
+You can also specify the provider explicitly (useful in CI or scripts):
 
-| Value        | Database     | Notes |
-|--------------|--------------|-------|
-| `SqlServer`  | SQL Server   | Default. Uses `GO` as batch separator. |
-| `PostgreSql` | PostgreSQL   | Standard `;` separated statements + dollar quoting for functions. |
-| `Sqlite`     | SQLite       | Simple multi-statement execution. |
-
-You can also change the provider per environment in `config.json` using the `dbProvider` property.
-
-## Generating Scripts
-To generate a new script run:
-```
-λ sqlci generate local add_test_users
-✓ Created script: 20260528150312345_local_add_test_users.sql
+```powershell
+sqlci init --provider Sqlite
+sqlci init -p PostgreSql
+sqlci init --provider SqlServer
 ```
 
-The script will be created in the `Scripts` folder and named so that it only runs when the environment `local` is targeted. It will attempt to open the file in your default editor.
+> **Tip:** The generated `connectionString` is now a sensible default for the provider you selected. You will still want to review and customize it for your actual database/server.
 
-## Deploying Scripts
-To deploy to an environment:
-```
-λ sqlci deploy local
+### 2. Edit the baseline script and config
+
+Open the generated baseline file (SqlCi tries to open it in your default `.sql` editor) and add something real:
+
+```sql
+-- 20250615143022123_all_baseline.sql
+CREATE TABLE Customers (
+    Id INTEGER PRIMARY KEY,
+    Name TEXT NOT NULL,
+    CreatedAt TEXT DEFAULT (datetime('now'))
+);
 ```
 
-Example output (with colors in a real terminal):
+**Important:** Edit `config.json` and replace the connection string with one that actually works for you. Example for a local SQLite file (when using `Sqlite` provider):
+
+```json
+"connectionString": "Data Source=local.db;Cache=Shared"
+```
+
+(For SQL Server use a valid LocalDB or server connection string; for Postgres use a `Host=...` Npgsql string.)
+
+### 3. Generate a new environment-specific script
+
+```powershell
+sqlci generate local add_test_customers
+```
+
+Output:
+
+```
+✓ Created script: 20250615143105234_local_add_test_customers.sql
+```
+
+Add a few rows to the new file:
+
+```sql
+INSERT INTO Customers (Name) VALUES
+    ('Alice Example'),
+    ('Bob Test'),
+    ('Charlie Dev');
+```
+
+### 4. Deploy
+
+```powershell
+sqlci deploy local
+```
+
+You'll see output similar to this (colors in a real terminal):
+
 ```
 Verifying configuration ...
 Configuration verification complete.
-...
+Deploying version 1.0.0 to local
+Loading change script(s) from .\Scripts ...
+Loaded 2 change script(s) from .\Scripts ...
+20250615143022123_all_baseline.sql
+20250615143105234_local_add_test_customers.sql
+Checking for existance of script tracking table in the database ...
+Script tracking table did not exist. Creating it now ...
+Script tracking table was created ...
+	Applying change script 20250615143022123_all_baseline.sql ...
+	Applying change script 20250615143105234_local_add_test_customers.sql ...
+
 Deployment Complete.
 ```
 
-On success the process exits with code `0`. On any error it exits with code `-1`.
+Exit code `0` on success, `-1` on any error.
 
-## Showing History of Previous Deployments
-```
-λ sqlci history local
-```
+> **Note:** The first deploy for an environment will create the tracking table. Subsequent deploys only run new scripts.
 
-This prints a table of previously applied scripts for the given environment along with the current database version.
+### 5. View history
+
+```powershell
+sqlci history local
+```
 
 Example:
-```
-Version    Date Ran               Script Name
----------  ---------------------  ---------------------------------------
-1.0.0      5/28/2026 3:15:52 PM   20231002140701805_all_add_initial_tables.sql
-...
-
-Current Database Version: 1.0.0 (5/28/2026 3:15:52 PM)
-```
-
-## Checking for Updates
-
-You can manually check if a newer version of `sqlci` is available by running:
 
 ```
-λ sqlci update-check
+Version  Date Ran                Script Name
+-------  ----------------------  ---------------------------------------
+1.0.0    6/15/2025 2:31:05 PM    20250615143022123_all_baseline.sql
+1.0.0    6/15/2025 2:31:05 PM    20250615143105234_local_add_test_customers.sql
+
+Current Database Version: 1.0.0 (6/15/2025 2:31:05 PM)
 ```
 
-This command queries the latest release on GitHub and will tell you if an update is available, along with a direct link to download it.
+### 6. Check for updates anytime
 
-Example output when an update exists:
-```
-A new version is available! Current: 1.0.0, Latest: 1.2.0
-Download here → https://github.com/wshaddix/sqlci/releases/latest
+```powershell
+sqlci update-check
 ```
 
-# Script Naming Conventions
-Every script must be named with a sequence number followed by an underscore followed by either the word "all" or the environment (dev|qa|prod|etc). An example would be
+Real output when you're on the latest version:
 
-	20130717141326951_all_Create_Customer_Table.sql
-	20130717141326952_all_Create_Order_Table.sql
-	20130717141326953_all_Create_OrderItem_Table.sql
-	20130717141326954_all_Create_States_Table.sql
-	20130717141326955_dev_Populate_States_Table.sql
-	20130717141326956_qa_Populate_States_Table.sql
-	20130717141326957_prod_Populate_States_Table.sql
+```
+Checking for updates...
+You're running the latest version. (v2.0.0)
+```
 
+That's the happy path. You now have a repeatable, auditable deployment process for your SQL changes.
 
-SqlCi will take the file name and strip the first N characters before the first underscore and use that as the sequence to sort by when running the scripts. Technically you can use any naming convention where the characters before the first underscore sorts sequentially. 
+## Command Reference
 
-Next it will take every file that has "_all_" following the sequence number as well as scripts that have "_environment_" following the sequence number and run those scripts. The environment value is based on the name of the environment in your `config.json` file. The parameter value must match the naming convention for the script name. In the example file names above, all of the files with "_all_" in the name will be ran in every environment, and the file with "_dev_" (or "_local_", etc.) in the name will only be ran when there is an environment with a matching name in your `config.json` file.
+### init
+
+Creates a new `config.json`, `Scripts/`, `ResetScripts/`, and a baseline script.
+
+```powershell
+sqlci init
+sqlci init --provider Sqlite
+sqlci init -p PostgreSql
+```
+
+If you omit `--provider`, SqlCi will show an interactive selector in normal terminals (defaults to `Sqlite` in non-interactive environments such as CI).
+
+Typical output (order is important — status first, then the checkmarks):
+
+```
+Initializing new SqlCi project...
+✓ Created config.json
+✓ Created Scripts directory
+✓ Created ResetScripts directory
+✓ Created baseline script: 20250615143022123_all_baseline.sql
+
+Initialization complete. Edit the baseline script and config.json to get started.
+```
+
+### generate <environment> <script_name>
+
+Creates a new timestamped script in the `Scripts` folder.
+
+```powershell
+sqlci generate local create_orders_table
+sqlci generate qa seed_reference_data
+```
+
+The `<environment>` token becomes part of the filename (`_local_`, `_qa_`, etc.) and controls which deployments will pick up the script.
+
+### deploy <environment>
+
+Runs all new (not-yet-applied) scripts for the given environment.
+
+```powershell
+sqlci deploy local
+sqlci deploy qa
+sqlci deploy production
+```
+
+Behavior:
+- Reads `config.json` and validates the target environment
+- If `resetDatabase: true`, runs everything in `ResetScripts/` first (destructive)
+- Creates the tracking table if missing
+- Only executes scripts whose Id has not already been recorded for this environment
+- Records every successful script run with the release version from config
+
+### history <environment>
+
+Shows every script that has been applied to the environment, plus the current database version.
+
+```powershell
+sqlci history production
+```
+
+### update-check
+
+Checks GitHub for a newer release.
+
+```powershell
+sqlci update-check
+sqlci update-check --prerelease     # include beta/rc versions
+```
+
+Typical output:
+
+```
+Checking for updates...
+You're running the latest version. (v2.0.0)
+```
+
+## Configuration
+
+All behavior is driven by `config.json` in the current directory.
+
+Minimal example:
+
+```json
+{
+  "scriptTable": "SchemaVersions",
+  "version": "2.4.1",
+  "scriptsFolder": "./Scripts",
+  "resetScriptsFolder": "./ResetScripts",
+  "environments": [
+    {
+      "name": "local",
+      "connectionString": "Server=(localdb)\\\\MSSQLLocalDB;Database=MyApp_Local;Integrated Security=true;",
+      "resetDatabase": true,
+      "dbProvider": "SqlServer"
+    },
+    {
+      "name": "production",
+      "connectionString": "Server=prod-sql;Database=MyApp;User Id=app;Password=${PROD_DB_PASSWORD};",
+      "resetDatabase": false,
+      "dbProvider": "SqlServer"
+    }
+  ]
+}
+```
+
+Key fields:
+
+- `scriptTable` — name of the audit table created in the target database (default `ScriptTable`)
+- `version` — the release/version string recorded with every script run
+- `scriptsFolder` / `resetScriptsFolder` — relative to the directory you run `sqlci` from
+- `environments[].name` — used for script filtering (`_all_` vs `_name_`)
+- `environments[].dbProvider` — `SqlServer`, `PostgreSql`, or `Sqlite`
+
+## Handling Secrets
+
+Never commit real passwords. SqlCi supports two patterns:
+
+### 1. Variable substitution (simple)
+
+```json
+"connectionString": "Server=...;Password=${PROD_DB_PASSWORD};"
+```
+
+Use `${VAR}` or `${env:VAR}`. If the variable is missing at runtime, SqlCi fails fast with a clear message.
+
+### 2. Full connection string override (CI/CD recommended)
+
+Set environment variables that completely replace the values in `config.json`:
+
+- `SQLCI_PRODUCTION_CONNECTION`
+- `SQLCI_PRODUCTION_RESET_CONNECTION`
+- `SQLCI_LOCAL_CONNECTION`, etc.
+
+This works great with GitHub Secrets, Azure Key Vault, AWS Secrets Manager, Doppler, 1Password CLI, etc.
+
+## Script Naming & Execution
+
+Scripts must follow this pattern:
+
+```
+<timestamp>_<all|environment>_<descriptive_name>.sql
+```
+
+Examples:
+
+- `20250615143022123_all_baseline.sql`
+- `20250615143105234_local_add_test_customers.sql`
+- `20250615143210987_qa_seed_lookup_tables.sql`
+
+Rules:
+- Everything before the **first** `_` is treated as the unique script Id (stored in the tracking table).
+- `_all_` scripts run in every environment.
+- `_local_`, `_qa_`, `_prod_`, etc. scripts only run when that exact environment name is targeted (case-insensitive).
+- Scripts execute in filename order (the timestamp format guarantees correct ordering).
+- A script is never executed twice against the same environment.
+
+You can still use any sortable prefix you like — the timestamp is just the default generated by `sqlci generate`.
+
+## Supported Database Providers
+
+| Provider    | Default batching                     | Notes |
+|-------------|--------------------------------------|-------|
+| `SqlServer` | Splits on `GO` (simple regex)        | Most mature path. Use `GO` between batches. |
+| `PostgreSql`| Sends entire script as one command   | Supports `$$` dollar-quoted strings and functions. |
+| `Sqlite`    | Sends entire script as one command   | Simple and fast for local/test workloads. |
+
+Set the provider at init time or per environment with the `dbProvider` property.
+
+## How It Works (briefly)
+
+1. `sqlci deploy <env>` loads `config.json` and validates the target environment.
+2. If reset is enabled, it runs every script in the reset folder against the reset connection.
+3. It loads all matching `*.sql` files from the scripts folder.
+4. It ensures a tracking table exists and finds which scripts have already run for this environment.
+5. Only new scripts are executed, then recorded with the current `version`.
+6. Every connection string and password is redacted before any output is written.
+
+The model is deliberately simple and has worked reliably for many years across real CI/CD pipelines.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for build instructions, development workflow, and how releases are cut.
+
+Full technical details for contributors and AI agents live in [AGENTS.md](AGENTS.md).
