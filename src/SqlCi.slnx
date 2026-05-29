@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/SolutionFolder/">
+    <File Path="../.github/workflows/ci.yml" />
+    <File Path="../.github/workflows/release.yml" />
+    <File Path="../.gitignore" />
+    <File Path="../AGENTS.md" />
+    <File Path="../CHANGELOG.md" />
+    <File Path="../CONTRIBUTING.md" />
+    <File Path="../README.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+  </Folder>
+  <Project Path="SqlCi.Cli/SqlCi.Cli.csproj" />
+  <Project Path="SqlCi.ScriptRunner.Tests/SqlCi.ScriptRunner.Tests.csproj" />
+  <Project Path="SqlCi.ScriptRunner/SqlCi.ScriptRunner.csproj" />
+</Solution>

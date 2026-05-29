@@ -4,7 +4,6 @@
     <AssemblyName>SqlCi.ScriptRunner.Tests</AssemblyName>
     <RootNamespace>SqlCi.ScriptRunner.Tests</RootNamespace>
     <!-- TargetFramework, LangVersion, Nullable, etc. come from Directory.Build.props -->
-    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>

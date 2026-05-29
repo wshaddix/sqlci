@@ -16,6 +16,11 @@
     <Company>Wes Shaddix</Company>
     <Copyright>Copyright © Wes Shaddix 2013-2026</Copyright>
     <Version>2.0.0</Version>
+
+    <!-- Build defaults -->
+    <Deterministic>true</Deterministic>
+    <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
+    <PackAsTool Condition="'$(PackAsTool)' == ''">false</PackAsTool>
   </PropertyGroup>
 
   <ItemGroup>
