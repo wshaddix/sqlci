@@ -10,8 +10,8 @@ public sealed class InitCommand : Command<InitCommand.Settings>
     public sealed class Settings : CommandSettings
     {
         [CommandOption("-p|--provider")]
-        [Description("Database provider to use (SqlServer, PostgreSql, Sqlite). Defaults to SqlServer.")]
-        public string Provider { get; set; } = "SqlServer";
+        [Description("Database provider to use (SqlServer, PostgreSql, Sqlite). Omit to choose interactively.")]
+        public string? Provider { get; set; }
     }
 
     public override int Execute(CommandContext context, Settings settings)
@@ -22,10 +22,14 @@ public sealed class InitCommand : Command<InitCommand.Settings>
             return -1;
         }
 
+        // Resolve provider: explicit flag > interactive prompt (if possible) > Sqlite default
+        var provider = ResolveProvider(settings.Provider);
+
         AnsiConsole.Status()
             .Start("Initializing new SqlCi project...", ctx =>
             {
-                // Create default configuration (matches old behavior)
+                var connectionString = GetDefaultConnectionString(provider);
+
                 var config = new Configuration
                 {
                     ScriptsFolder = ".\\Scripts",
@@ -37,9 +41,9 @@ public sealed class InitCommand : Command<InitCommand.Settings>
                         new EnvironmentConfiguration
                         {
                             Name = "local",
-                            ConnectionString = "Server=(localdb)\\\\MSSQLLocalDB;Database=YourDb_Local;Integrated Security=true;",
+                            ConnectionString = connectionString,
                             ResetDatabase = true,
-                            DbProvider = settings.Provider
+                            DbProvider = provider
                         }
                     }
                 };
@@ -71,5 +75,40 @@ public sealed class InitCommand : Command<InitCommand.Settings>
 
         AnsiConsole.MarkupLine("\n[green]Initialization complete.[/] Edit the baseline script and config.json to get started.");
         return 0;
+    }
+
+    private static string ResolveProvider(string? explicitProvider)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitProvider))
+        {
+            return explicitProvider;
+        }
+
+        if (AnsiConsole.Profile.Capabilities.Interactive)
+        {
+            var choice = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title("Select a [green]database provider[/]:")
+                    .PageSize(6)
+                    .AddChoices("Sqlite", "SqlServer", "PostgreSql"));
+
+            AnsiConsole.MarkupLineInterpolated($"[green]✓[/] Using provider: [bold]{choice}[/]");
+            return choice;
+        }
+
+        // Non-interactive fallback (CI, pipes, etc.)
+        AnsiConsole.MarkupLine("[dim]Non-interactive environment detected. Defaulting to Sqlite.[/]");
+        return "Sqlite";
+    }
+
+    private static string GetDefaultConnectionString(string provider)
+    {
+        return provider?.ToLowerInvariant() switch
+        {
+            "sqlite" => "Data Source=local.db;Cache=Shared",
+            "sqlserver" or "mssql" or "sql server" => "Server=(localdb)\\\\MSSQLLocalDB;Database=YourDb_Local;Integrated Security=true;",
+            "postgresql" or "postgres" or "pgsql" => "Host=localhost;Database=yourdb;Username=postgres;Password=changeme",
+            _ => "Data Source=local.db;Cache=Shared"
+        };
     }
 }
