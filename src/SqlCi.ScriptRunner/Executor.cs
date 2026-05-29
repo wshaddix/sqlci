@@ -158,33 +158,25 @@ namespace SqlCi.ScriptRunner
         /// Applies a single change script and records it in the tracking table inside one
         /// transaction so the database is never left with an applied-but-unrecorded script.
         /// </summary>
-        private async Task ApplyScriptAsync(string sqlScriptFileName)
-        {
-            var sqlText = File.ReadAllText(Path.Combine(_configuration.ScriptsFolder, sqlScriptFileName));
-            var id = ExtractIdFromFileName(sqlScriptFileName);
+    private async Task ApplyScriptAsync(string sqlScriptFileName)
+    {
+        var sqlText = File.ReadAllText(Path.Combine(_configuration.ScriptsFolder, sqlScriptFileName));
+        var id = ExtractIdFromFileName(sqlScriptFileName);
 
-            using var transaction = _connection!.BeginTransaction();
+        using var transaction = _connection!.BeginTransaction();
 
-            try
-            {
-                await _databaseProvider.ExecuteScriptAsync(_connection!, sqlText, transaction);
-                await _databaseProvider.RecordScriptRunAsync(
-                    _connection!,
-                    _configuration.ScriptTable,
-                    id,
-                    sqlScriptFileName,
-                    _configuration.Version,
-                    DateTime.UtcNow,
-                    transaction);
+        await _databaseProvider.ExecuteScriptAsync(_connection!, sqlText, transaction);
+        await _databaseProvider.RecordScriptRunAsync(
+            _connection!,
+            _configuration.ScriptTable,
+            id,
+            sqlScriptFileName,
+            _configuration.Version,
+            DateTime.UtcNow,
+            transaction);
 
-                transaction.Commit();
-            }
-            catch
-            {
-                transaction.Rollback();
-                throw;
-            }
-        }
+        transaction.Commit();
+    }
 
         private async Task<bool> EnsureTrackingTableExistsAsync()
         {
