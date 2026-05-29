@@ -132,7 +132,7 @@ jobs:
 
           # Create the release (or update if it already exists from the tag)
           gh release create "$TAG" \
-            --title "sqlci v${VERSION}" \
+            --title "${VERSION}" \
             --generate-notes \
             $PRERELEASE_FLAG \
             release-artifacts/sqlci-${VERSION}-* \
