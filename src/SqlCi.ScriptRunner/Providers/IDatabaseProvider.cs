@@ -24,22 +24,28 @@ public interface IDatabaseProvider
 
     /// <summary>
     /// Returns the list of already-applied script names from the tracking table.
+    /// Results are ordered by the textual <c>Id</c> (the script's sequence prefix). Correct
+    /// chronological ordering therefore relies on fixed-width, zero-padded sequence prefixes
+    /// such as those produced by the CLI's script generator (a 17-digit UTC timestamp).
     /// </summary>
     Task<IReadOnlyList<string>> GetAppliedScriptsAsync(IDbConnection connection, string tableName);
 
     /// <summary>
     /// Records that a script has been successfully executed.
+    /// When <paramref name="transaction"/> is supplied the insert participates in that transaction.
     /// </summary>
-    Task RecordScriptRunAsync(IDbConnection connection, string tableName, string id, string scriptName, string release, DateTime appliedOnUtc);
+    Task RecordScriptRunAsync(IDbConnection connection, string tableName, string id, string scriptName, string release, DateTime appliedOnUtc, IDbTransaction? transaction = null);
 
     /// <summary>
-    /// Executes a migration script. 
+    /// Executes a migration script.
     /// The implementation decides how to handle batching (e.g. GO for SQL Server, multiple statements for others).
+    /// When <paramref name="transaction"/> is supplied the script participates in that transaction.
     /// </summary>
-    Task ExecuteScriptAsync(IDbConnection connection, string sql);
+    Task ExecuteScriptAsync(IDbConnection connection, string sql, IDbTransaction? transaction = null);
 
     /// <summary>
-    /// Retrieves full script execution history records.
+    /// Retrieves full script execution history records, ordered by the textual <c>Id</c>
+    /// (see remarks on <see cref="GetAppliedScriptsAsync"/> regarding fixed-width prefixes).
     /// </summary>
     Task<IReadOnlyList<ScriptExecutionRecord>> GetScriptExecutionHistoryAsync(IDbConnection connection, string tableName);
 }

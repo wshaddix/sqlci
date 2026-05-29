@@ -1,7 +1,8 @@
-﻿using SqlCi.ScriptRunner;
+using SqlCi.ScriptRunner;
 using SqlCi.ScriptRunner.Exceptions;
 using TUnit.Assertions;
 using TUnit.Assertions.Extensions;
+using TUnit.Assertions.AssertConditions.Throws;
 using TUnit.Core;
 
 namespace SqlCi.ScriptRunner.Tests;
@@ -13,15 +14,9 @@ public class ExecutorTests
     {
         var executor = new Executor();
 
-        try
-        {
-            await executor.ExecuteAsync(null!, "local");
-            Assert.Fail("Expected ArgumentNullException");
-        }
-        catch (ArgumentNullException ex)
-        {
-            await Assert.That(ex.ParamName).IsEqualTo("configuration");
-        }
+        await Assert.That(async () => { await executor.ExecuteAsync(null!, "local"); })
+            .Throws<ArgumentNullException>()
+            .WithParameterName("configuration");
     }
 
     [Test]
@@ -37,14 +32,7 @@ public class ExecutorTests
 
         var executor = new Executor();
 
-        try
-        {
-            await executor.ExecuteAsync(config, "");
-            Assert.Fail("Expected ConfigurationException");
-        }
-        catch (ConfigurationException)
-        {
-            // success
-        }
+        await Assert.That(async () => { await executor.ExecuteAsync(config, ""); })
+            .Throws<ConfigurationException>();
     }
 }

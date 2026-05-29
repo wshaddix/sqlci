@@ -1,5 +1,6 @@
 ﻿using SqlCi.ScriptRunner.Constants;
 using SqlCi.ScriptRunner.Exceptions;
+using SqlCi.ScriptRunner.Providers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -24,6 +25,10 @@ public class Configuration
             {
                 sb.AppendLine(ExceptionMessages.MissingScriptTable);
             }
+            else if (!ProviderHelpers.IsValidIdentifier(ScriptTable))
+            {
+                sb.AppendLine(ExceptionMessages.InvalidScriptTable);
+            }
 
             // version
             if (string.IsNullOrEmpty(Version))
@@ -36,8 +41,7 @@ public class Configuration
             {
                 sb.AppendLine(ExceptionMessages.MissingScriptsFolder);
             }
-
-            if (!Directory.Exists(ScriptsFolder))
+            else if (!Directory.Exists(ScriptsFolder))
             {
                 sb.AppendLine(ExceptionMessages.ScriptsFolderDoesNotExist);
             }
@@ -51,6 +55,10 @@ public class Configuration
 
         public EnvironmentConfiguration Verify(string environment)
         {
+            // Validate the global configuration (script table, version, scripts folder) up front
+            // so that callers always get a complete, early failure rather than an obscure error later.
+            Verify();
+
             if (string.IsNullOrWhiteSpace(environment))
             {
                 throw new ConfigurationException(ExceptionMessages.MissingEnvironment);

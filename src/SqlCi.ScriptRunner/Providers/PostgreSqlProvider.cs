@@ -10,11 +10,11 @@ public class PostgreSqlProvider : IDatabaseProvider
 
     public async Task EnsureTrackingTableExistsAsync(IDbConnection connection, string tableName)
     {
-        if (connection is not NpgsqlConnection pgConnection)
-            throw new ArgumentException("Connection must be a NpgsqlConnection for PostgreSqlProvider.");
+        var pgConnection = ProviderHelpers.Cast<NpgsqlConnection>(connection);
+        ProviderHelpers.ValidateTableName(tableName);
 
         // PostgreSQL uses information_schema and is generally case-sensitive with unquoted identifiers.
-        // We use lowercase for the table name by convention unless quoted.
+        // We quote the validated identifier to preserve casing.
         var sql = $@"
 CREATE TABLE IF NOT EXISTS ""{tableName}"" (
     ""Id"" VARCHAR(50) PRIMARY KEY,
@@ -29,21 +29,21 @@ CREATE TABLE IF NOT EXISTS ""{tableName}"" (
 
     public async Task<bool> TrackingTableExistsAsync(IDbConnection connection, string tableName)
     {
-        if (connection is not NpgsqlConnection pgConnection)
-            throw new ArgumentException("Connection must be a NpgsqlConnection.");
+        var pgConnection = ProviderHelpers.Cast<NpgsqlConnection>(connection);
+        ProviderHelpers.ValidateTableName(tableName);
 
-        // Postgres information_schema is reliable here
-        var sql = $@"SELECT 1 FROM information_schema.tables WHERE table_name = '{tableName}'";
+        var sql = "SELECT 1 FROM information_schema.tables WHERE table_name = @TableName";
 
         await using var cmd = new NpgsqlCommand(sql, pgConnection);
+        cmd.Parameters.AddWithValue("TableName", tableName);
         var result = await cmd.ExecuteScalarAsync();
         return result != null;
     }
 
     public async Task<IReadOnlyList<string>> GetAppliedScriptsAsync(IDbConnection connection, string tableName)
     {
-        if (connection is not NpgsqlConnection pgConnection)
-            throw new ArgumentException("Connection must be a NpgsqlConnection.");
+        var pgConnection = ProviderHelpers.Cast<NpgsqlConnection>(connection);
+        ProviderHelpers.ValidateTableName(tableName);
 
         var scripts = new List<string>();
         var sql = $@"SELECT ""Script"" FROM ""{tableName}"" ORDER BY ""Id""";
@@ -60,16 +60,17 @@ CREATE TABLE IF NOT EXISTS ""{tableName}"" (
         return scripts;
     }
 
-    public async Task RecordScriptRunAsync(IDbConnection connection, string tableName, string id, string scriptName, string release, DateTime appliedOnUtc)
+    public async Task RecordScriptRunAsync(IDbConnection connection, string tableName, string id, string scriptName, string release, DateTime appliedOnUtc, IDbTransaction? transaction = null)
     {
-        if (connection is not NpgsqlConnection pgConnection)
-            throw new ArgumentException("Connection must be a NpgsqlConnection.");
+        var pgConnection = ProviderHelpers.Cast<NpgsqlConnection>(connection);
+        ProviderHelpers.ValidateTableName(tableName);
 
         var sql = $@"
 INSERT INTO ""{tableName}"" (""Id"", ""Script"", ""Release"", ""AppliedOnUtc"")
 VALUES (@Id, @Script, @Release, @AppliedOnUtc)";
 
         await using var cmd = new NpgsqlCommand(sql, pgConnection);
+        cmd.Transaction = transaction as NpgsqlTransaction;
         cmd.Parameters.AddWithValue("Id", id);
         cmd.Parameters.AddWithValue("Script", scriptName);
         cmd.Parameters.AddWithValue("Release", release);
@@ -80,8 +81,8 @@ VALUES (@Id, @Script, @Release, @AppliedOnUtc)";
 
     public async Task<IReadOnlyList<ScriptExecutionRecord>> GetScriptExecutionHistoryAsync(IDbConnection connection, string tableName)
     {
-        if (connection is not NpgsqlConnection pgConnection)
-            throw new ArgumentException("Connection must be a NpgsqlConnection.");
+        var pgConnection = ProviderHelpers.Cast<NpgsqlConnection>(connection);
+        ProviderHelpers.ValidateTableName(tableName);
 
         var records = new List<ScriptExecutionRecord>();
         var sql = $@"SELECT ""Id"", ""Script"", ""Release"", ""AppliedOnUtc"" FROM ""{tableName}"" ORDER BY ""Id""";
@@ -102,14 +103,13 @@ VALUES (@Id, @Script, @Release, @AppliedOnUtc)";
         return records;
     }
 
-    public async Task ExecuteScriptAsync(IDbConnection connection, string sql)
+    public async Task ExecuteScriptAsync(IDbConnection connection, string sql, IDbTransaction? transaction = null)
     {
-        if (connection is not NpgsqlConnection pgConnection)
-            throw new ArgumentException("Connection must be a NpgsqlConnection.");
+        var pgConnection = ProviderHelpers.Cast<NpgsqlConnection>(connection);
 
         // PostgreSQL: Npgsql can execute multiple statements in one command.
-        // We simply execute the entire script content.
         await using var cmd = new NpgsqlCommand(sql, pgConnection);
+        cmd.Transaction = transaction as NpgsqlTransaction;
         await cmd.ExecuteNonQueryAsync();
     }
 }

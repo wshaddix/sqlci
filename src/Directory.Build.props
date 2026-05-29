@@ -15,7 +15,9 @@
     <!-- Assembly metadata defaults (override per-project where needed) -->
     <Company>Wes Shaddix</Company>
     <Copyright>Copyright © Wes Shaddix 2013-2026</Copyright>
-    <Version>2.0.0</Version>
+    <!-- Versioning is driven by git tags via the release pipeline (-p:Version=...).
+         This obviously-fake default makes an un-versioned local/CI build easy to spot. -->
+    <Version>0.0.0-dev</Version>
 
     <!-- Build defaults -->
     <Deterministic>true</Deterministic>

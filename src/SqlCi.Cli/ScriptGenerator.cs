@@ -9,7 +9,8 @@ public static class ScriptGenerator
     {
         Directory.CreateDirectory(scriptsFolder);
 
-        var timestamp = DateTime.Now.ToString("yyyyMMddHHmmssfff");
+        // Use UTC for a monotonic, machine- and timezone-independent sequence prefix.
+        var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
         var fileName = $"{timestamp}_{environment}_{scriptName}.sql";
         var fullPath = Path.Combine(scriptsFolder, fileName);
 

@@ -9,12 +9,11 @@ using System.Text.RegularExpressions;
 
 namespace SqlCi.ScriptRunner
 {
-    public class Executor
+    public class Executor : IDisposable
     {
         private readonly IDatabaseProvider _databaseProvider;
 
         private Configuration _configuration = null!;
-        private string _database = null!;
         private EnvironmentConfiguration _environmentConfiguration = null!;
         private IDbConnection? _connection;
 
@@ -45,7 +44,7 @@ namespace SqlCi.ScriptRunner
                 await ResetAsync();
             }
 
-            LogInfo($"Deploying version {configuration.Version} to {_environmentConfiguration.Name}");
+            LogInfo($"Deploying version {_configuration.Version} to {_environmentConfiguration.Name}");
             var results = await DeployAsync();
 
             LogSuccess("Deployment Complete.");
@@ -56,21 +55,22 @@ namespace SqlCi.ScriptRunner
         {
             VerifyConfiguration(configuration, environment);
 
-            var tableExisted = await EnsureTrackingTableExistsAsync();
-
             var runHistory = new List<Script>();
-
-            if (!tableExisted)
-            {
-                return runHistory;
-            }
-
-            LogInfo("Reading script run history ...");
 
             OpenConnection();
 
             try
             {
+                // Reading history must never create the tracking table as a side effect.
+                var exists = await _databaseProvider.TrackingTableExistsAsync(_connection!, _configuration.ScriptTable);
+
+                if (!exists)
+                {
+                    return runHistory;
+                }
+
+                LogInfo("Reading script run history ...");
+
                 var historyRecords = await _databaseProvider.GetScriptExecutionHistoryAsync(_connection!, _configuration.ScriptTable);
 
                 foreach (var record in historyRecords)
@@ -93,51 +93,6 @@ namespace SqlCi.ScriptRunner
             StatusUpdate?.Invoke(this, e);
         }
 
-        private async Task AuditScriptRanAsync(string sqlScriptFileName)
-        {
-            OpenConnection();
-
-            try
-            {
-                var id = ExtractIdFromFileName(sqlScriptFileName);
-                await _databaseProvider.RecordScriptRunAsync(
-                    _connection!,
-                    _configuration.ScriptTable,
-                    id,
-                    sqlScriptFileName,
-                    _configuration.Version,
-                    DateTime.UtcNow);
-            }
-            finally
-            {
-                CloseConnection();
-            }
-        }
-
-        private void CloseConnection()
-        {
-            if (_connection != null && _connection.State != ConnectionState.Closed)
-            {
-                LogInfo("Closing connection to database ...");
-                _connection.Close();
-            }
-        }
-
-        private async Task CreateTrackingTableAsync()
-        {
-            OpenConnection();
-
-            try
-            {
-                await _databaseProvider.EnsureTrackingTableExistsAsync(_connection!, _configuration.ScriptTable);
-                LogSuccess("Script tracking table was created ...");
-            }
-            finally
-            {
-                CloseConnection();
-            }
-        }
-
         private async Task<ExecutionResults> DeployAsync()
         {
             LogInfo($"Loading change script(s) from {_configuration.ScriptsFolder} ...");
@@ -155,6 +110,8 @@ namespace SqlCi.ScriptRunner
                 LogInfo($"\t{scriptFile}");
             }
 
+            OpenConnection();
+
             try
             {
                 LogInfo("Checking for existance of script tracking table in the database ...");
@@ -165,7 +122,7 @@ namespace SqlCi.ScriptRunner
                 if (tableExisted)
                 {
                     LogInfo("Checking to see which change script(s) have already been applied ...");
-                    var ranScriptFiles = await GetRanScriptsAsync();
+                    var ranScriptFiles = (await _databaseProvider.GetAppliedScriptsAsync(_connection!, _configuration.ScriptTable)).ToList();
                     LogInfo($"Found {ranScriptFiles.Count} change script(s) that have already been applied ...");
 
                     foreach (var scriptFile in ranScriptFiles)
@@ -186,8 +143,7 @@ namespace SqlCi.ScriptRunner
                 foreach (var sqlScriptFileName in sqlScriptFiles)
                 {
                     LogInfo($"\tApplying change script {sqlScriptFileName} ...");
-                    await RunScriptFileAsync(_configuration.ScriptsFolder, sqlScriptFileName);
-                    await AuditScriptRanAsync(sqlScriptFileName);
+                    await ApplyScriptAsync(sqlScriptFileName);
                 }
 
                 return new ExecutionResults(true);
@@ -198,28 +154,47 @@ namespace SqlCi.ScriptRunner
             }
         }
 
-        private async Task<bool> DoesTrackingTableExistAsync()
+        /// <summary>
+        /// Applies a single change script and records it in the tracking table inside one
+        /// transaction so the database is never left with an applied-but-unrecorded script.
+        /// </summary>
+        private async Task ApplyScriptAsync(string sqlScriptFileName)
         {
-            OpenConnection();
+            var sqlText = File.ReadAllText(Path.Combine(_configuration.ScriptsFolder, sqlScriptFileName));
+            var id = ExtractIdFromFileName(sqlScriptFileName);
+
+            using var transaction = _connection!.BeginTransaction();
 
             try
             {
-                return await _databaseProvider.TrackingTableExistsAsync(_connection!, _configuration.ScriptTable);
+                await _databaseProvider.ExecuteScriptAsync(_connection!, sqlText, transaction);
+                await _databaseProvider.RecordScriptRunAsync(
+                    _connection!,
+                    _configuration.ScriptTable,
+                    id,
+                    sqlScriptFileName,
+                    _configuration.Version,
+                    DateTime.UtcNow,
+                    transaction);
+
+                transaction.Commit();
             }
-            finally
+            catch
             {
-                CloseConnection();
+                transaction.Rollback();
+                throw;
             }
         }
 
         private async Task<bool> EnsureTrackingTableExistsAsync()
         {
-            var exists = await DoesTrackingTableExistAsync();
+            var exists = await _databaseProvider.TrackingTableExistsAsync(_connection!, _configuration.ScriptTable);
 
             if (!exists)
             {
                 LogWarning("Script tracking table did not exist. Creating it now ...");
-                await CreateTrackingTableAsync();
+                await _databaseProvider.EnsureTrackingTableExistsAsync(_connection!, _configuration.ScriptTable);
+                LogSuccess("Script tracking table was created ...");
             }
             else
             {
@@ -229,41 +204,25 @@ namespace SqlCi.ScriptRunner
             return exists;
         }
 
-        private string ExtractIdFromFileName(string sqlScriptFileName)
+        private static string ExtractIdFromFileName(string sqlScriptFileName)
         {
             // get just the file name and not the full path
             var fileName = Path.GetFileName(sqlScriptFileName);
 
-            if (string.IsNullOrWhiteSpace(fileName))
-            {
-                throw new ApplicationException($"The file {sqlScriptFileName} does not exist.");
-            }
-
             // take anything left of the first underscore
             var underscoreIndex = fileName.IndexOf('_');
+
+            if (underscoreIndex <= 0)
+            {
+                throw new ApplicationException(
+                    $"The script file name '{fileName}' is invalid. Script files must follow the " +
+                    "'<sequence>_<all|environment>_<description>.sql' naming convention.");
+            }
+
             return fileName.Substring(0, underscoreIndex);
         }
 
-        private async Task<List<string>> GetRanScriptsAsync()
-        {
-            var ranScripts = new List<string>();
-
-            OpenConnection();
-
-            try
-            {
-                var applied = await _databaseProvider.GetAppliedScriptsAsync(_connection!, _configuration.ScriptTable);
-                ranScripts.AddRange(applied);
-            }
-            finally
-            {
-                CloseConnection();
-            }
-
-            return ranScripts;
-        }
-
-        private List<string> LoadSqlScriptFiles(string directory, bool loadAll = false)
+        private List<string> LoadSqlScriptFiles(string directory)
         {
             // we want to load scripts that start with <sequence>_all_*.sql or <sequence>_<environment>_*.sql
             const string allRegex = @"[0-9]+_all_.*";
@@ -271,78 +230,64 @@ namespace SqlCi.ScriptRunner
 
             var filesPaths = Directory.GetFiles(directory, "*.sql");
 
-            return loadAll 
-                ? filesPaths.Select(Path.GetFileName).Where(fn => fn is not null).Select(fn => fn!).ToList() 
-                : filesPaths.Select(Path.GetFileName).Where(fn => fn is not null && (Regex.IsMatch(fn, allRegex, RegexOptions.IgnoreCase) || Regex.IsMatch(fn, envRegex, RegexOptions.IgnoreCase))).Select(fn => fn!).ToList();
-        }
-
-        private void LogError(string msg)
-        {
-            var sanitizedMsg = RedactSecrets(msg);
-            OnRaiseStatusUpdateEvent(new StatusUpdateEvent(sanitizedMsg, StatusLevelEnum.Error));
+            return filesPaths
+                .Select(Path.GetFileName)
+                .Where(fn => fn is not null
+                             && (Regex.IsMatch(fn, allRegex, RegexOptions.IgnoreCase)
+                                 || Regex.IsMatch(fn, envRegex, RegexOptions.IgnoreCase)))
+                .Select(fn => fn!)
+                .ToList();
         }
 
         private void LogInfo(string msg)
-        {
-            var sanitizedMsg = RedactSecrets(msg);
-            OnRaiseStatusUpdateEvent(new StatusUpdateEvent(sanitizedMsg, StatusLevelEnum.Info));
-        }
+            => OnRaiseStatusUpdateEvent(new StatusUpdateEvent(RedactSecrets(msg), StatusLevelEnum.Info));
 
         private void LogSuccess(string msg)
-        {
-            var sanitizedMsg = RedactSecrets(msg);
-            OnRaiseStatusUpdateEvent(new StatusUpdateEvent(sanitizedMsg, StatusLevelEnum.Success));
-        }
+            => OnRaiseStatusUpdateEvent(new StatusUpdateEvent(RedactSecrets(msg), StatusLevelEnum.Success));
 
         private void LogWarning(string msg)
-        {
-            var sanitizedMsg = RedactSecrets(msg);
-            OnRaiseStatusUpdateEvent(new StatusUpdateEvent(sanitizedMsg, StatusLevelEnum.Warning));
-        }
+            => OnRaiseStatusUpdateEvent(new StatusUpdateEvent(RedactSecrets(msg), StatusLevelEnum.Warning));
 
         private void OpenConnection(bool useResetConnection = false)
         {
+            var connString = useResetConnection
+                ? _environmentConfiguration.ResetConnectionString
+                : _environmentConfiguration.ConnectionString;
+
+            if (string.IsNullOrWhiteSpace(connString))
+                throw new InvalidOperationException("Connection string is not configured.");
+
             if (_connection == null)
             {
-                var connString = useResetConnection 
-                    ? _environmentConfiguration.ResetConnectionString 
-                    : _environmentConfiguration.ConnectionString;
-
-                if (string.IsNullOrWhiteSpace(connString))
-                    throw new InvalidOperationException("Connection string is not configured.");
-
                 _connection = _databaseProvider.CreateConnection(connString);
             }
 
             if (_connection.State == ConnectionState.Closed)
             {
-                var connString = useResetConnection 
-                    ? _environmentConfiguration.ResetConnectionString 
-                    : _environmentConfiguration.ConnectionString;
-
-                LogInfo($"Opening connection to database using connection string: {RedactSecrets(connString ?? string.Empty)} ...");
-                _connection.ConnectionString = connString!;
+                LogInfo($"Opening connection to database using connection string: {RedactSecrets(connString)} ...");
+                _connection.ConnectionString = connString;
                 _connection.Open();
-
-                if (!useResetConnection && _connection is { Database: not null })
-                {
-                    _database = _connection.Database;
-                }
             }
         }
 
-        private string RedactSecrets(string msg)
+        private void CloseConnection()
         {
-            // We want to redact passwords from connection strings before raising the event so that they won't be logged anywhere
-            const string pattern = @"password\s?=(.+);";
-
-            if (Regex.IsMatch(msg, pattern, RegexOptions.IgnoreCase))
+            if (_connection == null)
             {
-                return Regex.Replace(msg, pattern, "password=xxxxxx;");
+                return;
             }
 
-            return msg;
+            if (_connection.State != ConnectionState.Closed)
+            {
+                LogInfo("Closing connection to database ...");
+                _connection.Close();
+            }
+
+            _connection.Dispose();
+            _connection = null;
         }
+
+        private static string RedactSecrets(string msg) => SecretRedactor.Redact(msg);
 
         private async Task ResetAsync()
         {
@@ -361,26 +306,22 @@ namespace SqlCi.ScriptRunner
                 LogInfo($"\t{scriptFile}");
             }
 
-            LogWarning("Resetting Database ...");
-            foreach (var sqlScriptFileName in resetScripts)
-            {
-                LogWarning($"\tApplying reset script {sqlScriptFileName} ...");
-                await RunScriptFileAsync(_configuration.ResetScriptsFolder, sqlScriptFileName, true);
-            }
-
-            LogSuccess("Database reset complete.");
-
-            CloseConnection();
-        }
-
-        private async Task RunScriptFileAsync(string folder, string sqlScriptFileName, bool resettingDatabase = false)
-        {
-            OpenConnection(resettingDatabase);
+            OpenConnection(useResetConnection: true);
 
             try
             {
-                var sqlText = File.ReadAllText(Path.Combine(folder, sqlScriptFileName));
-                await _databaseProvider.ExecuteScriptAsync(_connection!, sqlText);
+                LogWarning("Resetting Database ...");
+
+                // Reset scripts may contain statements (DROP/CREATE DATABASE) that cannot run inside a
+                // transaction, so they are executed directly rather than transactionally.
+                foreach (var sqlScriptFileName in resetScripts)
+                {
+                    LogWarning($"\tApplying reset script {sqlScriptFileName} ...");
+                    var sqlText = File.ReadAllText(Path.Combine(_configuration.ResetScriptsFolder, sqlScriptFileName));
+                    await _databaseProvider.ExecuteScriptAsync(_connection!, sqlText);
+                }
+
+                LogSuccess("Database reset complete.");
             }
             finally
             {
@@ -405,6 +346,12 @@ namespace SqlCi.ScriptRunner
             // store the config so other instance methods can reference it later on
             _configuration = configuration;
             _environmentConfiguration = environmentConfig;
+        }
+
+        public void Dispose()
+        {
+            CloseConnection();
+            GC.SuppressFinalize(this);
         }
     }
 }

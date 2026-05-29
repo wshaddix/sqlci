@@ -1,6 +1,7 @@
 using SqlCi.ScriptRunner.Providers;
 using TUnit.Assertions;
 using TUnit.Assertions.Extensions;
+using TUnit.Assertions.AssertConditions.Throws;
 using TUnit.Core;
 
 namespace SqlCi.ScriptRunner.Tests.Providers;
@@ -37,8 +38,9 @@ public class DatabaseProviderFactoryTests
     }
 
     [Test]
-    public void Create_InvalidProvider_ThrowsNotSupportedException()
+    public async Task Create_InvalidProvider_ThrowsNotSupportedException()
     {
-        Assert.Throws<NotSupportedException>(() => DatabaseProviderFactory.Create("Oracle"));
+        await Assert.That(() => DatabaseProviderFactory.Create("Oracle"))
+            .Throws<NotSupportedException>();
     }
 }

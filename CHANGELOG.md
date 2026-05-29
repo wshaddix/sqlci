@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-05-29
+
+### Security
+- Validate `ScriptTable` as a safe SQL identifier (reject names with spaces, semicolons, etc.) before interpolation into DDL/DML across all providers. Invalid names now produce a clear error at config validation time rather than failing at the database level.
+- Harden connection-string secret redaction: the `Pwd` keyword is now recognized, arbitrary whitespace around `=` is handled, and password values without a trailing semicolon are redacted.
+
+### Fixed
+- Each change script and its tracking-table audit row now execute inside a **single transaction**. If the script fails, its audit is rolled back — previously a crash between script execution and audit insertion would cause the script to re-run on the next deploy.
+- Configuration validation now runs the full suite of checks (ScriptTable, Version, ScriptsFolder existence) at deploy time rather than only validating the target environment. Previously, a missing scripts folder would surface as a cryptic `DirectoryNotFoundException` mid-deploy.
+- `ExtractIdFromFileName` no longer crashes on filenames without an underscore; it now throws a clear message describing the required naming convention.
+- SQL Server `GO` batch separator is now anchored to the start of the line (`^\s*GO\s*$`) so words ending in "GO" (e.g. `CARGO`) are not accidentally split.
+- Generated script timestamps now use UTC instead of local time, producing monotonic, timezone-independent sequence prefixes.
+- Script run history (`sqlci history`) no longer creates the tracking table as a side effect — it only reads.
+
+### Changed
+- `Executor` now implements `IDisposable` and holds a single connection per phase (deploy / reset / history) rather than opening and closing one per operation.
+- Provider alias handling (SqlServer/MSSQL, PostgreSql/pgsql, etc.) is centralized in `DatabaseProviderFactory.Normalize`, and `sqlci init` now writes the canonical provider name into config.
+- Unused `ExceptionMessages` removed and remaining constants converted to `const`. Default assembly version set to `0.0.0-dev` so un-versioned builds are obvious.
+
+### Removed
+- Dead code: unused `_database` field in `Executor`, unused `LogError` method, unused `MissingResetFolder` / `NotVerified` / `ResetFolderDoesNotExist` exception messages.
+
+[2.1.1]: https://github.com/wshaddix/sqlci/releases/tag/v2.1.1
+
 ## [2.1.0] - 2026-06-XX
 
 ### Added

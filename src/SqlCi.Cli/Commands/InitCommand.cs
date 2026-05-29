@@ -1,6 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Cli;
 using SqlCi.ScriptRunner;
+using SqlCi.ScriptRunner.Providers;
 using System.ComponentModel;
 
 namespace SqlCi.Cli.Commands;
@@ -23,7 +24,16 @@ public sealed class InitCommand : Command<InitCommand.Settings>
         }
 
         // Resolve provider: explicit flag > interactive prompt (if possible) > Sqlite default
-        var provider = ResolveProvider(settings.Provider);
+        string provider;
+        try
+        {
+            provider = DatabaseProviderFactory.Normalize(ResolveProvider(settings.Provider));
+        }
+        catch (NotSupportedException ex)
+        {
+            AnsiConsole.MarkupLineInterpolated($"[red]Error:[/] {ex.Message}");
+            return -1;
+        }
 
         AnsiConsole.Status()
             .Start("Initializing new SqlCi project...", ctx =>
@@ -101,13 +111,13 @@ public sealed class InitCommand : Command<InitCommand.Settings>
         return "Sqlite";
     }
 
-    private static string GetDefaultConnectionString(string provider)
+    private static string GetDefaultConnectionString(string canonicalProvider)
     {
-        return provider?.ToLowerInvariant() switch
+        // canonicalProvider is already normalized by DatabaseProviderFactory.Normalize.
+        return canonicalProvider switch
         {
-            "sqlite" => "Data Source=local.db;Cache=Shared",
-            "sqlserver" or "mssql" or "sql server" => "Server=(localdb)\\\\MSSQLLocalDB;Database=YourDb_Local;Integrated Security=true;",
-            "postgresql" or "postgres" or "pgsql" => "Host=localhost;Database=yourdb;Username=postgres;Password=changeme",
+            "SqlServer" => "Server=(localdb)\\\\MSSQLLocalDB;Database=YourDb_Local;Integrated Security=true;",
+            "PostgreSql" => "Host=localhost;Database=yourdb;Username=postgres;Password=changeme",
             _ => "Data Source=local.db;Cache=Shared"
         };
     }

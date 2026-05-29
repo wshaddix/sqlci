@@ -4,6 +4,7 @@ using SqlCi.ScriptRunner.Tests.Fixtures;
 using TUnit.Assertions;
 using TUnit.Assertions.Extensions;
 using TUnit.Core;
+using TUnit.Core.Exceptions;
 
 namespace SqlCi.ScriptRunner.Tests.Providers.PostgreSql;
 
@@ -23,8 +24,7 @@ public class PostgreSqlProviderTests(PostgreSqlContainerFixture fixture)
 
         if (!fixture.IsAvailable || string.IsNullOrWhiteSpace(fixture.ConnectionString))
         {
-            Skip.Test("PostgreSQL container not available (Docker Desktop not running or container failed to start)");
-            return;
+            throw new SkipTestException("PostgreSQL container not available (Docker Desktop not running or container failed to start)");
         }
 
         await using var connection = new NpgsqlConnection(fixture.ConnectionString!);
@@ -48,8 +48,7 @@ public class PostgreSqlProviderTests(PostgreSqlContainerFixture fixture)
 
         if (!fixture.IsAvailable || string.IsNullOrWhiteSpace(fixture.ConnectionString))
         {
-            Skip.Test("PostgreSQL container not available (Docker Desktop not running or container failed to start)");
-            return;
+            throw new SkipTestException("PostgreSQL container not available (Docker Desktop not running or container failed to start)");
         }
 
         await using var connection = new NpgsqlConnection(fixture.ConnectionString!);
@@ -75,8 +74,7 @@ public class PostgreSqlProviderTests(PostgreSqlContainerFixture fixture)
 
         if (!fixture.IsAvailable || string.IsNullOrWhiteSpace(fixture.ConnectionString))
         {
-            Skip.Test("PostgreSQL container not available (Docker Desktop not running or container failed to start)");
-            return;
+            throw new SkipTestException("PostgreSQL container not available (Docker Desktop not running or container failed to start)");
         }
 
         await using var connection = new NpgsqlConnection(fixture.ConnectionString!);
@@ -110,8 +108,7 @@ public class PostgreSqlProviderTests(PostgreSqlContainerFixture fixture)
 
         if (!fixture.IsAvailable || string.IsNullOrWhiteSpace(fixture.ConnectionString))
         {
-            Skip.Test("PostgreSQL container not available (Docker Desktop not running or container failed to start)");
-            return;
+            throw new SkipTestException("PostgreSQL container not available (Docker Desktop not running or container failed to start)");
         }
 
         await using var connection = new NpgsqlConnection(fixture.ConnectionString!);
@@ -139,8 +136,7 @@ public class PostgreSqlProviderTests(PostgreSqlContainerFixture fixture)
 
         if (!fixture.IsAvailable || string.IsNullOrWhiteSpace(fixture.ConnectionString))
         {
-            Skip.Test("PostgreSQL container not available (Docker Desktop not running or container failed to start)");
-            return;
+            throw new SkipTestException("PostgreSQL container not available (Docker Desktop not running or container failed to start)");
         }
 
         await using var connection = new NpgsqlConnection(fixture.ConnectionString!);

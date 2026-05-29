@@ -1,8 +1,9 @@
-﻿using SqlCi.ScriptRunner;
+using SqlCi.ScriptRunner;
 using SqlCi.ScriptRunner.Exceptions;
 using System.IO;
 using TUnit.Assertions;
 using TUnit.Assertions.Extensions;
+using TUnit.Assertions.AssertConditions.Throws;
 using TUnit.Core;
 
 namespace SqlCi.ScriptRunner.Tests;
@@ -20,15 +21,25 @@ public class ScriptConfigurationTests
             ScriptTable = "" // missing
         };
 
-        try
+        await Assert.That(() => config.Verify())
+            .Throws<ConfigurationException>()
+            .WithMessageContaining("Script table cannot be blank");
+    }
+
+    [Test]
+    public async Task Verify_WithInvalidScriptTableName_ThrowsConfigurationException()
+    {
+        var config = new Configuration
         {
-            config.Verify();
-            Assert.Fail("Expected ConfigurationException");
-        }
-        catch (ConfigurationException ex)
-        {
-            await Assert.That(ex.Message).Contains("Script table cannot be blank");
-        }
+            ScriptTable = "bad table; DROP",
+            Version = "1.0",
+            ScriptsFolder = ".",
+            ResetScriptsFolder = "."
+        };
+
+        await Assert.That(() => config.Verify())
+            .Throws<ConfigurationException>()
+            .WithMessageContaining("Script table must start with");
     }
 
     [Test]
@@ -42,15 +53,9 @@ public class ScriptConfigurationTests
             Version = "" // missing
         };
 
-        try
-        {
-            config.Verify();
-            Assert.Fail("Expected ConfigurationException");
-        }
-        catch (ConfigurationException ex)
-        {
-            await Assert.That(ex.Message).Contains("Release number cannot be blank");
-        }
+        await Assert.That(() => config.Verify())
+            .Throws<ConfigurationException>()
+            .WithMessageContaining("Release number cannot be blank");
     }
 
     [Test]
@@ -64,15 +69,9 @@ public class ScriptConfigurationTests
             ResetScriptsFolder = "."
         };
 
-        try
-        {
-            config.Verify();
-            Assert.Fail("Expected ConfigurationException");
-        }
-        catch (ConfigurationException ex)
-        {
-            await Assert.That(ex.Message).Contains("Scripts folder does not exist");
-        }
+        await Assert.That(() => config.Verify())
+            .Throws<ConfigurationException>()
+            .WithMessageContaining("Scripts folder does not exist");
     }
 
     [Test]
@@ -86,15 +85,9 @@ public class ScriptConfigurationTests
             ResetScriptsFolder = "."
         };
 
-        try
-        {
-            config.Verify("");
-            Assert.Fail("Expected ConfigurationException");
-        }
-        catch (ConfigurationException ex)
-        {
-            await Assert.That(ex.Message).Contains("Environment cannot be blank");
-        }
+        await Assert.That(() => config.Verify(""))
+            .Throws<ConfigurationException>()
+            .WithMessageContaining("Environment cannot be blank");
     }
 
     [Test]
@@ -109,14 +102,8 @@ public class ScriptConfigurationTests
             Environments = [new EnvironmentConfiguration { Name = "local", ConnectionString = "server=." }]
         };
 
-        try
-        {
-            config.Verify("production");
-            Assert.Fail("Expected ConfigurationException");
-        }
-        catch (ConfigurationException ex)
-        {
-            await Assert.That(ex.Message).Contains("does not exist in config.json");
-        }
+        await Assert.That(() => config.Verify("production"))
+            .Throws<ConfigurationException>()
+            .WithMessageContaining("does not exist in config.json");
     }
 }
