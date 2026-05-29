@@ -69,7 +69,9 @@ public sealed class UpdateCheckCommand : AsyncCommand<UpdateCheckCommand.Setting
 
     private static async Task<GitHubRelease?> GetLatestReleaseAsync(bool includePrerelease)
     {
-        const string url = "https://api.github.com/repos/wshaddix/sqlci/releases/latest";
+        // We use the full releases list instead of /releases/latest because the latter
+        // never returns prereleases, even when the user explicitly asks for them.
+        string url = "https://api.github.com/repos/wshaddix/sqlci/releases?per_page=100";
 
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.UserAgent.Add(new ProductInfoHeaderValue("sqlci", AppVersion.Current));
@@ -86,19 +88,42 @@ public sealed class UpdateCheckCommand : AsyncCommand<UpdateCheckCommand.Setting
         response.EnsureSuccessStatusCode();
 
         var json = await response.Content.ReadAsStringAsync();
-        var release = JsonSerializer.Deserialize<GitHubRelease>(json, JsonOptions);
+        var releases = JsonSerializer.Deserialize<List<GitHubRelease>>(json, JsonOptions) ?? new List<GitHubRelease>();
 
-        // If we're not including prereleases and this is a prerelease, we might want to fetch all releases.
-        // For simplicity with /latest, we'll just return what we got.
-        // A more complete implementation would call /releases and filter.
+        var candidates = releases
+            .Where(r => includePrerelease || !r.prerelease)
+            .OrderByDescending(r => r.tag_name, Comparer<string>.Create(CompareReleaseTags))
+            .ToList();
 
-        if (release != null && release.prerelease && !includePrerelease)
+        return candidates.FirstOrDefault();
+    }
+
+    private static int CompareReleaseTags(string tagA, string tagB)
+    {
+        string keyA = GetSortableVersionKey(tagA);
+        string keyB = GetSortableVersionKey(tagB);
+
+        if (Version.TryParse(keyA, out var va) && Version.TryParse(keyB, out var vb))
         {
-            // If latest is a prerelease and user didn't ask for them, we could fall back,
-            // but for now we still report it with a note.
+            return va.CompareTo(vb);
         }
 
-        return release;
+        // Fallback to string comparison if parsing fails
+        return string.Compare(keyA, keyB, StringComparison.Ordinal);
+    }
+
+    private static string GetSortableVersionKey(string tag)
+    {
+        string v = CleanVersion(tag);
+
+        // Strip pre-release (-beta.4, -rc.1, etc.) and build metadata (+sha)
+        int dash = v.IndexOf('-');
+        if (dash >= 0) v = v[..dash];
+
+        int plus = v.IndexOf('+');
+        if (plus >= 0) v = v[..plus];
+
+        return v;
     }
 
     private static string CleanVersion(string tag)
@@ -111,11 +136,14 @@ public sealed class UpdateCheckCommand : AsyncCommand<UpdateCheckCommand.Setting
 
     private static bool IsNewerVersion(string latest, string current)
     {
-        if (!Version.TryParse(latest, out var latestVer))
-            return false;
+        string latestKey = GetSortableVersionKey(latest);
+        string currentKey = GetSortableVersionKey(current);
 
-        if (!Version.TryParse(current, out var currentVer))
+        if (!Version.TryParse(latestKey, out var latestVer) ||
+            !Version.TryParse(currentKey, out var currentVer))
+        {
             return false;
+        }
 
         return latestVer > currentVer;
     }
