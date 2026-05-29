@@ -44,7 +44,7 @@ public sealed class UpdateCheckCommand : AsyncCommand<UpdateCheckCommand.Setting
                 AnsiConsole.MarkupLineInterpolated(
                     $"[green]A new version is available![/] Current: [bold]{currentVersion}[/], Latest: [bold]{latestVersion}[/]");
                 AnsiConsole.MarkupLineInterpolated(
-                    $"[link={release.html_url}]Download here → {release.html_url}[/]");
+                    $"[link={release.html_url}]Download here:    {release.html_url}[/]");
             }
             else
             {
