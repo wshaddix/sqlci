@@ -12,7 +12,6 @@ namespace SqlCi.ScriptRunner.Tests;
 /// End-to-end tests that drive <see cref="Executor"/> against a real (file-based) SQLite
 /// database. These require no Docker and exercise the full deploy + tracking + transaction flow.
 /// </summary>
-[NotInParallel]
 public class ExecutorIntegrationTests
 {
     private static (Configuration config, string scriptsFolder, string dbPath, string connectionString) CreateScenario()
@@ -64,7 +63,9 @@ public class ExecutorIntegrationTests
         try
         {
             SqliteConnection.ClearAllPools();
-            var dir = Path.GetDirectoryName(Path.GetDirectoryName(dbPath));
+            // Delete only this scenario's own directory ({temp}/sqlci-tests/{guid}),
+            // never the shared "sqlci-tests" parent that other tests also use.
+            var dir = Path.GetDirectoryName(dbPath);
             if (dir is not null && Directory.Exists(dir))
                 Directory.Delete(dir, recursive: true);
         }
