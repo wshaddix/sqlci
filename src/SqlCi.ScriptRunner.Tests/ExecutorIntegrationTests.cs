@@ -17,7 +17,7 @@ public class ExecutorIntegrationTests
 {
     private static (Configuration config, string scriptsFolder, string dbPath, string connectionString) CreateScenario()
     {
-        var root = Path.Combine(Path.GetTempPath(), "sqlci-tests", Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(AppContext.BaseDirectory, "sqlci-test-dbs", Guid.NewGuid().ToString("N"));
         var scriptsFolder = Path.Combine(root, "Scripts");
         var resetFolder = Path.Combine(root, "ResetScripts");
         Directory.CreateDirectory(scriptsFolder);
