@@ -20,12 +20,12 @@ jobs:
           dotnet-version: '10.0.x'   # Adjust pin as .NET 10 stabilizes
 
       - name: Restore
-        run: dotnet restore src/SqlCi.sln
+        run: dotnet restore src/SqlCi.slnx
 
       - name: Build (Release)
-        run: dotnet build src/SqlCi.sln -c Release --no-restore
+        run: dotnet build src/SqlCi.slnx -c Release --no-restore
 
       - name: Test (Release)
-        run: dotnet test src/SqlCi.sln -c Release --no-build --logger "console;verbosity=minimal"
+        run: dotnet test src/SqlCi.slnx -c Release --no-build --logger "console;verbosity=minimal"
         # Note: Some integration tests (PostgreSql/SqlServer via Testcontainers) may be skipped
         # or require Docker. Sqlite in-memory tests always run and provide core coverage.
