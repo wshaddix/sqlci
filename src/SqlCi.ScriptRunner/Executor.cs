@@ -165,17 +165,31 @@ namespace SqlCi.ScriptRunner
 
         using var transaction = _connection!.BeginTransaction();
 
-        await _databaseProvider.ExecuteScriptAsync(_connection!, sqlText, transaction);
-        await _databaseProvider.RecordScriptRunAsync(
-            _connection!,
-            _configuration.ScriptTable,
-            id,
-            sqlScriptFileName,
-            _configuration.Version,
-            DateTime.UtcNow,
-            transaction);
+        try
+        {
+            await _databaseProvider.ExecuteScriptAsync(_connection!, sqlText, transaction);
+            await _databaseProvider.RecordScriptRunAsync(
+                _connection!,
+                _configuration.ScriptTable,
+                id,
+                sqlScriptFileName,
+                _configuration.Version,
+                DateTime.UtcNow,
+                transaction);
 
-        transaction.Commit();
+            transaction.Commit();
+        }
+        catch
+        {
+            // SQLite (and sometimes other providers) can auto-rollback on error
+            // or throw "no transaction is active" if the DB already terminated it.
+            if (transaction.Connection is { State: ConnectionState.Open })
+            {
+                transaction.Rollback();
+            }
+
+            throw;
+        }
     }
 
         private async Task<bool> EnsureTrackingTableExistsAsync()
